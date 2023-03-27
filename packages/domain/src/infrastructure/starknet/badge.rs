@@ -30,17 +30,11 @@ impl BadgeModel {
 impl StarknetModel<HashMap<String, StarknetValue>> for BadgeModel {
     async fn load(&self) -> Result<HashMap<String, StarknetValue>, ModelError> {
         info!("loading badge with address {:#x}", self.address);
-        let res = load_blockchain_data(
+        Ok(load_blockchain_data(
             self.provider.clone(),
             self.address,
             &["getImplementationHash", "name", "contractURI", "owner"],
         )
-        .await?;
-        let response_data: HashMap<String, StarknetValue> = res
-            .iter()
-            .map(|res| (res.0.clone(), res.1.clone()))
-            .collect();
-
-        Ok(response_data)
+        .await?)
     }
 }

@@ -32,3 +32,4 @@ sea-query-postgres.workspace = true
 sea-orm-migration.workspace = true
 sea-query-binder.workspace = true
 url.workspace = true
+crypto-bigint.workspace = true

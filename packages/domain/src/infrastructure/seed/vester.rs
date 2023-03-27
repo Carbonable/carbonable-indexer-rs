@@ -2,23 +2,42 @@ use std::sync::Arc;
 
 use starknet::core::types::FieldElement;
 
-use crate::infrastructure::{
-    postgres::{find_or_create_implementation, PostgresModels},
-    starknet::{
-        model::{StarknetModel, StarknetValueResolver},
-        vester::VesterModel,
+use crate::{
+    domain::Contract,
+    infrastructure::{
+        postgres::{find_or_create_implementation, PostgresModels},
+        starknet::{
+            model::{StarknetModel, StarknetValueResolver},
+            vester::VesterModel,
+        },
     },
 };
 
 use super::{DataSeederError, Seeder};
 
 #[derive(Debug)]
-pub struct VesterSeeder {
-    pub db_models: Arc<PostgresModels>,
+pub struct VesterSeeder<C: Contract> {
+    pub db_models: Arc<PostgresModels<C>>,
+    contract: std::marker::PhantomData<C>,
+}
+
+impl<C> VesterSeeder<C>
+where
+    C: Contract,
+{
+    pub fn new(db_models: Arc<PostgresModels<C>>) -> Self {
+        Self {
+            db_models,
+            contract: std::marker::PhantomData::<C>,
+        }
+    }
 }
 
 #[async_trait::async_trait]
-impl Seeder for VesterSeeder {
+impl<C> Seeder for VesterSeeder<C>
+where
+    C: Contract + Send + Sync,
+{
     async fn seed(&self, address: String) -> Result<String, DataSeederError> {
         let db_models = self.db_models.clone();
 
@@ -48,6 +67,6 @@ impl Seeder for VesterSeeder {
     }
 
     fn can_process(&self, seeder_type: String) -> bool {
-        seeder_type == "vester"
+        "vester" == seeder_type || "vester_3525" == seeder_type
     }
 }

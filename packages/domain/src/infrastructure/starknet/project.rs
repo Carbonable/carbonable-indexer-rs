@@ -6,7 +6,13 @@ use starknet::{
 };
 use tracing::info;
 
-use crate::infrastructure::starknet::model::{StarknetResolvedValue, StarknetValueResolver};
+use crate::{
+    domain::{Erc3525, Erc721},
+    infrastructure::starknet::{
+        model::{load_blockchain_slot_data, StarknetResolvedValue, StarknetValueResolver},
+        uri::Metadata,
+    },
+};
 
 use super::{
     get_starknet_rpc_from_env,
@@ -14,25 +20,47 @@ use super::{
     uri::UriModel,
 };
 
-pub struct ProjectModel {
+pub struct ProjectModel<C = Erc721> {
     pub provider: Arc<JsonRpcClient<HttpTransport>>,
     address: FieldElement,
+    contract: std::marker::PhantomData<C>,
 }
 
-impl ProjectModel {
-    pub fn new(address: FieldElement) -> Result<Self, ModelError> {
+impl ProjectModel<Erc721> {
+    pub fn new(address: FieldElement) -> Result<ProjectModel<Erc721>, ModelError> {
         Ok(Self {
             provider: Arc::new(get_starknet_rpc_from_env()?),
             address,
+            contract: std::marker::PhantomData::<Erc721>,
         })
     }
 }
 
+impl ProjectModel<Erc3525> {
+    pub fn new(address: FieldElement) -> Result<ProjectModel<Erc3525>, ModelError> {
+        Ok(Self {
+            provider: Arc::new(get_starknet_rpc_from_env()?),
+            address,
+            contract: std::marker::PhantomData::<Erc3525>,
+        })
+    }
+
+    async fn load_slot_count(&self) -> Result<u64, ModelError> {
+        let mut res =
+            load_blockchain_data(self.provider.clone(), self.address, &["slotCount"]).await?;
+        Ok(res
+            .get_mut("slotCount")
+            .expect("failed to get slotCount from blockchain")
+            .resolve("u256")
+            .into())
+    }
+}
+
 #[async_trait::async_trait]
-impl StarknetModel<HashMap<String, StarknetValue>> for ProjectModel {
+impl StarknetModel<HashMap<String, StarknetValue>> for ProjectModel<Erc721> {
     async fn load(&self) -> Result<HashMap<String, StarknetValue>, ModelError> {
         info!("loading project with address {:#x}", self.address);
-        let res = load_blockchain_data(
+        let mut response_data: HashMap<String, StarknetValue> = load_blockchain_data(
             self.provider.clone(),
             self.address,
             &[
@@ -50,19 +78,13 @@ impl StarknetModel<HashMap<String, StarknetValue>> for ProjectModel {
         )
         .await?;
 
-        let mut response_data: HashMap<String, StarknetValue> =
-            res.iter().fold(HashMap::new(), |mut acc, res| {
-                acc.insert(res.0.clone(), res.1.clone());
-                acc
-            });
-
         let uri = response_data
             .get_mut("contractURI")
             .expect("failed to get contractURI from blockchain");
 
         let ipfs_uri: String = uri.resolve("string_array").into();
-        let uri_model = UriModel::new(ipfs_uri)?;
-        let metadata = uri_model.load().await?;
+        let uri_model = UriModel::<Erc721>::new(ipfs_uri)?;
+        let metadata: Metadata = uri_model.load().await?;
         let slug = get_slug_from_uri(&metadata.external_url);
 
         response_data.insert(
@@ -78,38 +100,70 @@ impl StarknetModel<HashMap<String, StarknetValue>> for ProjectModel {
     }
 }
 
+#[async_trait::async_trait]
+impl StarknetModel<Vec<HashMap<String, StarknetValue>>> for ProjectModel<Erc3525> {
+    async fn load(&self) -> Result<Vec<HashMap<String, StarknetValue>>, ModelError> {
+        info!("loading 3525 project with address {:#x}", self.address);
+        let slots = self.load_slot_count().await?;
+        let generic_data = load_blockchain_data(
+            self.provider.clone(),
+            self.address,
+            &["getImplementationHash", "owner", "symbol"],
+        )
+        .await?;
+        let mut response_data: Vec<HashMap<String, StarknetValue>> = Vec::new();
+        for slot in 1..slots + 1 {
+            // name, slug from slotUri
+            // contractUri = slotUri(slot)
+            let mut slot_data = load_blockchain_slot_data(
+                self.provider.clone(),
+                self.address,
+                slot,
+                &[
+                    "slotURI",
+                    "tokenSupplyInSlot",
+                    "getTonEquivalent",
+                    "getTimes",
+                    "getAbsorptions",
+                    "isSetup",
+                ],
+            )
+            .await?;
+            let slot_uri: String = slot_data
+                .get_mut("slotURI")
+                .expect("should have slot uri")
+                .resolve("string_array")
+                .into();
+            let uri_model = UriModel::<Erc3525>::new(slot_uri)?;
+            let metadata = uri_model.load().await?;
+            slot_data.insert(
+                "name".to_string(),
+                StarknetValue::from_resolved_value(StarknetResolvedValue::String(metadata.name)),
+            );
+            slot_data.insert(
+                "slug".to_string(),
+                StarknetValue::from_resolved_value(StarknetResolvedValue::String(
+                    get_slug_from_uri(&metadata.external_url),
+                )),
+            );
+            slot_data.insert(
+                "address".to_string(),
+                StarknetValue::new(vec![self.address]),
+            );
+
+            slot_data.extend(generic_data.clone().into_iter().map(|(k, v)| (k, v)));
+
+            response_data.push(slot_data);
+        }
+
+        Ok(response_data)
+    }
+}
+
 fn get_slug_from_uri(external_url: &str) -> String {
     let url = external_url.trim_end_matches('/');
     url.split('/')
         .last()
         .expect("failed to parse metadata external_url")
         .to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use starknet::core::types::FieldElement;
-
-    use crate::infrastructure::starknet::project::ProjectModel;
-
-    #[tokio::test]
-    async fn test_get_abi() {
-        let model = ProjectModel::new(
-            FieldElement::from_hex_be(
-                "0x003d062b797ca97c2302bfdd0e9b687548771eda981d417faace4f6913ed8f2a",
-            )
-            .unwrap(),
-        )
-        .unwrap();
-
-        let _abi = model
-            .get_project_proxy_abi(
-                FieldElement::from_hex_be(
-                    "0x2ae72e57d8b5f77bb6fc8183018709f236b32e4b27ddbdfecde229da175815d",
-                )
-                .unwrap(),
-            )
-            .await
-            .unwrap();
-    }
 }

@@ -1,28 +1,28 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use starknet::{
     core::{
-        types::{BlockId, CallFunction, FieldElement},
+        types::FieldElement,
         utils::{get_selector_from_name, NonAsciiNameError},
     },
     providers::{
-        jsonrpc::{HttpTransport, JsonRpcClient},
-        Provider, ProviderError, SequencerGatewayProvider, SequencerGatewayProviderError,
+        jsonrpc::{
+            models::{BlockId, BlockTag, FunctionCall},
+            HttpTransport, JsonRpcClient, JsonRpcClientError,
+        },
+        ProviderError, SequencerGatewayProviderError,
     },
 };
 use thiserror::Error;
+use time::OffsetDateTime;
 use tokio::task::JoinError;
-use tracing::info;
 
 use crate::infrastructure::flatten;
 
-use super::{get_starknet_rpc_client, get_starknet_rpc_from_env, SequencerError};
-
-const MAX_RETRY_COUNT: u8 = 5;
-const RETRY_DELAY: u64 = 10;
+use super::SequencerError;
 
 #[derive(Debug, Error)]
-pub enum ModelError<T: Provider> {
+pub enum ModelError {
     #[error(transparent)]
     FailedToBuildModel(#[from] SequencerError),
     #[error("failed to parse out contract selector")]
@@ -36,7 +36,7 @@ pub enum ModelError<T: Provider> {
     #[error(transparent)]
     SequencerError(#[from] ProviderError<SequencerGatewayProviderError>),
     #[error(transparent)]
-    ProviderError(#[from] ProviderError<<T as starknet::providers::Provider>::Error>),
+    ProviderError(#[from] JsonRpcClientError<reqwest::Error>),
     #[error(transparent)]
     SerdeError(#[from] serde_json::Error),
     #[error(transparent)]
@@ -48,60 +48,84 @@ pub trait StarknetModel<T> {
     async fn load(&self) -> Result<T, ModelError>;
 }
 
-fn get_call_function(address: &FieldElement, selector: &str) -> CallFunction {
-    CallFunction {
+fn get_call_function(
+    address: &FieldElement,
+    selector: &str,
+    calldata: Vec<FieldElement>,
+) -> FunctionCall {
+    FunctionCall {
         contract_address: *address,
         entry_point_selector: get_selector_from_name(selector).unwrap(),
-        calldata: vec![],
+        calldata,
     }
 }
 
 /// Sync starknet model with some base data
-pub(crate) async fn load_blockchain_data<T: Provider + Send + Sync + 'static>(
-    provider: Arc<T>,
+pub(crate) async fn load_blockchain_data(
+    provider: Arc<JsonRpcClient<HttpTransport>>,
     address: FieldElement,
     selectors: &'static [&str],
-) -> Result<Vec<(String, StarknetValue)>, ModelError> {
+) -> Result<HashMap<String, StarknetValue>, ModelError> {
     let mut handles = vec![];
     for selector in selectors {
         let provider = provider.clone();
 
         let handle = tokio::spawn(async move {
             let contract_entrypoint = selector;
-            let mut count = 0;
-            let mut res = provider
-                .call_contract(
-                    get_call_function(&address, contract_entrypoint),
-                    BlockId::Latest,
+            let res = provider
+                .call(
+                    get_call_function(&address, contract_entrypoint, vec![]),
+                    &BlockId::Tag(BlockTag::Latest),
                 )
                 .await;
-            while let Err(ProviderError::RateLimited) = res {
-                if count >= MAX_RETRY_COUNT {
-                    return Err(ModelError::RateLimited);
-                }
-                info!("retrying to call starknet RPC");
-                tokio::time::sleep(std::time::Duration::from_secs(RETRY_DELAY)).await;
-                res = provider
-                    .call_contract(
-                        get_call_function(&address, contract_entrypoint),
-                        BlockId::Latest,
-                    )
-                    .await;
-                count += 1;
-            }
-            Ok((
-                selector.to_string(),
-                StarknetValue::new(res.unwrap().result),
-            ))
+            Ok((selector.to_string(), StarknetValue::new(res.unwrap())))
         });
 
         handles.push(flatten(handle));
     }
 
     match futures::future::try_join_all(handles).await {
-        Ok(res) => Ok(res),
+        Ok(res) => Ok(to_hash_map(res)),
         Err(e) => Err(e),
     }
+}
+
+pub(crate) async fn load_blockchain_slot_data(
+    provider: Arc<JsonRpcClient<HttpTransport>>,
+    address: FieldElement,
+    slot: u64,
+    selectors: &'static [&str],
+) -> Result<HashMap<String, StarknetValue>, ModelError> {
+    let mut handles = vec![];
+    for selector in selectors {
+        let provider = provider.clone();
+        let handle = tokio::spawn(async move {
+            let contract_entrypoint = selector;
+            let res = provider
+                .call(
+                    get_call_function(
+                        &address,
+                        contract_entrypoint,
+                        vec![slot.into(), FieldElement::ZERO],
+                    ),
+                    &BlockId::Tag(BlockTag::Latest),
+                )
+                .await;
+            Ok((selector.to_string(), StarknetValue::new(res.unwrap())))
+        });
+
+        handles.push(flatten(handle));
+    }
+    match futures::future::try_join_all(handles).await {
+        Ok(res) => Ok(to_hash_map(res)),
+        Err(e) => Err(e),
+    }
+}
+fn to_hash_map(value: Vec<(String, StarknetValue)>) -> HashMap<String, StarknetValue> {
+    value.iter().fold(HashMap::new(), |mut acc, res| {
+        acc.insert(res.0.clone(), res.1.clone());
+        acc
+    })
 }
 
 pub trait StarknetValueResolver {
@@ -195,6 +219,12 @@ impl StarknetValueResolver for StarknetValue {
                 self.resolved = Some(resolved.clone());
                 resolved
             }
+            "u256" => {
+                let int = u64::try_from(self.inner.first().unwrap().to_owned()).unwrap();
+                let resolved = StarknetResolvedValue::Int(int);
+                self.resolved = Some(resolved.clone());
+                resolved
+            }
             "u64_array" => {
                 let integers = self
                     .inner
@@ -212,7 +242,17 @@ impl StarknetValueResolver for StarknetValue {
                 self.resolved = Some(resolved.clone());
                 resolved
             }
-            _ => panic!("starknet required type not implemented yet"),
+            "datetime" => {
+                let int = u64::try_from(self.inner.pop().unwrap()).unwrap();
+                let datetime = OffsetDateTime::from_unix_timestamp(int as i64).unwrap();
+                let resolved = StarknetResolvedValue::Date(datetime);
+                self.resolved = Some(resolved.clone());
+                resolved
+            }
+            _ => panic!(
+                "starknet required type not implemented yet {}",
+                required_type
+            ),
         };
     }
 }
@@ -226,7 +266,7 @@ pub enum StarknetResolvedValue {
     Bool(bool),
     IntArray(Vec<u64>),
     DateArray,
-    Date,
+    Date(OffsetDateTime),
 }
 
 impl From<StarknetResolvedValue> for String {
@@ -244,7 +284,16 @@ impl From<StarknetResolvedValue> for i64 {
     fn from(value: StarknetResolvedValue) -> Self {
         match value {
             StarknetResolvedValue::Int(i) => i64::try_from(i).unwrap(),
-            _ => panic!("cannot convert StarknetResolvedValue to string"),
+            _ => panic!("cannot convert StarknetResolvedValue to i64"),
+        }
+    }
+}
+
+impl From<StarknetResolvedValue> for u64 {
+    fn from(value: StarknetResolvedValue) -> Self {
+        match value {
+            StarknetResolvedValue::Int(i) => i,
+            _ => panic!("cannot convert StarknetResolvedValue to u64"),
         }
     }
 }
@@ -266,7 +315,9 @@ impl From<StarknetResolvedValue> for sea_query::Value {
             ),
             StarknetResolvedValue::Float => todo!(),
             StarknetResolvedValue::DateArray => todo!(),
-            StarknetResolvedValue::Date => todo!(),
+            StarknetResolvedValue::Date(d) => {
+                sea_query::Value::TimeDateTimeWithTimeZone(Some(Box::new(d)))
+            }
         }
     }
 }

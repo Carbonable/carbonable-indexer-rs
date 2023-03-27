@@ -10,7 +10,8 @@ members = [
 carbonable-domain = { path = "packages/domain"}
 
 apibara-sdk = { git = "https://github.com/apibara/apibara", rev = "47f5312" }
-starknet = { git = "https://github.com/xJonathanLEI/starknet-rs", rev = "b7da6de"}
+# starknet = { git = "https://github.com/xJonathanLEI/starknet-rs", rev = "a46d3dd"}
+starknet = { path = "../../starknet-rs" }
 async-trait = "0.1.66"
 futures = "0.3.26"
 futures-util = "0.3.26"
@@ -29,10 +30,11 @@ serde-aux = "4.1.2"
 sea-query = { version = "0.28.3", features = ["thread-safe", "backend-postgres", "derive", "attr", "with-json", "with-uuid", "postgres-array", "with-time"] }
 time = { version = "0.3.20", features = ["serde", "formatting", "macros"] }
 deadpool-postgres = "0.10.5"
-postgres-types = "0.2.4"
+postgres-types = { version = "0.2.4", features = ["derive"] }
 tokio-postgres = "0.7.7"
 deadpool = "0.9.5"
 sea-query-postgres = { version = "0.2.0", features = ["with-json", "with-uuid", "postgres-array", "with-time"] }
 sea-orm-migration = { version = "0.11.1", features = ["sqlx-postgres", "runtime-tokio-rustls"] }
 sea-query-binder = { version = "0.3.0", features = ["with-uuid", "with-json", "postgres-array", "with-time", "runtime-tokio-rustls", "sqlx-postgres"] }
 url = "2.3.1"
+crypto-bigint = { version = "0.5.1", features = ["serde"] }
