@@ -1,6 +1,45 @@
-use sea_query::enum_def;
+use postgres_types::{FromSql, ToSql};
+use sea_query::{enum_def, Iden};
 use time::PrimitiveDateTime;
 use uuid::Uuid;
+
+#[derive(Debug, ToSql, Iden)]
+pub enum ErcImplementation {
+    #[iden = "erc_implementation"]
+    Enum,
+    #[iden = "erc_721"]
+    Erc721,
+    #[iden = "erc_3525"]
+    Erc3525,
+}
+
+impl<'a> FromSql<'a> for ErcImplementation {
+    fn from_sql(
+        _ty: &postgres_types::Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let s = std::str::from_utf8(raw)?;
+        match s {
+            "erc_721" => Ok(ErcImplementation::Erc721),
+            "erc_3525" => Ok(ErcImplementation::Erc3525),
+            _ => Err("Unrecognized enum variant".into()),
+        }
+    }
+
+    fn accepts(ty: &postgres_types::Type) -> bool {
+        ty.name() == "erc_implementation"
+    }
+}
+
+impl From<ErcImplementation> for &str {
+    fn from(value: ErcImplementation) -> &'static str {
+        match value {
+            ErcImplementation::Erc721 => "erc_721",
+            ErcImplementation::Erc3525 => "erc_3525",
+            ErcImplementation::Enum => panic!("Not a valid erc implementation"),
+        }
+    }
+}
 
 // These structs are only table definition structs
 // Not domain business entities
@@ -10,13 +49,15 @@ pub struct Project {
     pub address: String,
     pub slug: String,
     pub name: String,
-    pub symbol: String,
+    pub slot: Option<i64>,
+    pub symbol: Option<String>,
     pub total_supply: i64,
     pub owner: String,
     pub ton_equivalent: i64,
     pub times: Vec<PrimitiveDateTime>,
     pub absorptions: Vec<i64>,
     pub setup: bool,
+    pub erc_implementation: ErcImplementation,
     pub implementation_id: Option<Uuid>,
     pub uri_id: Option<Uuid>,
 }
@@ -28,13 +69,15 @@ impl From<tokio_postgres::Row> for Project {
             address: value.get(1),
             slug: value.get(2),
             name: value.get(3),
-            symbol: value.get(4),
-            total_supply: value.get(5),
-            owner: value.get(6),
-            ton_equivalent: value.get(7),
-            times: value.get(8),
-            absorptions: value.get(9),
-            setup: value.get(10),
+            slot: value.get(4),
+            symbol: value.get(5),
+            total_supply: value.get(6),
+            owner: value.get(7),
+            ton_equivalent: value.get(8),
+            times: value.get(9),
+            absorptions: value.get(10),
+            setup: value.get(11),
+            erc_implementation: value.get(12),
             implementation_id: None,
             uri_id: None,
         }
@@ -102,16 +145,20 @@ impl From<tokio_postgres::Row> for Payment {
 pub struct Minter {
     pub id: Uuid,
     pub address: String,
-    pub max_supply: u64,
+    pub max_supply: Option<u64>,
+    // Can be reserved value in case of an erc3525
     pub reserved_supply: u64,
     pub pre_sale_open: bool,
     pub public_sale_open: bool,
-    pub max_buy_per_tx: u64,
+    pub max_buy_per_tx: Option<u64>,
+    pub max_value_per_tx: Option<u64>,
+    pub min_value_per_tx: Option<u64>,
     pub unit_price: u64,
     pub whitelist_merkle_root: Option<String>,
     pub sold_out: bool,
-    pub total_value: u64,
+    pub total_value: Option<u64>,
     pub whitelist: Option<serde_json::Value>,
+    pub erc_implementation: ErcImplementation,
     pub project_id: Option<Uuid>,
     pub payment_id: Option<Uuid>,
     pub implementation_id: Option<Uuid>,

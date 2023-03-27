@@ -11,8 +11,11 @@ pub mod yielder;
 use starknet::{
     core::types::FieldElement,
     providers::{
-        jsonrpc::{HttpTransport, JsonRpcClient},
-        Provider, SequencerGatewayProvider,
+        jsonrpc::{
+            models::{BlockId, BlockTag},
+            HttpTransport, JsonRpcClient,
+        },
+        SequencerGatewayProvider,
     },
 };
 use std::sync::Arc;
@@ -103,10 +106,12 @@ fn get_sequencer_domain(env: &StarknetEnv) -> Result<String, SequencerError> {
 }
 
 /// Get proxy class abi
-pub async fn get_proxy_abi<T: Provider + Send + Sync>(
-    provider: Arc<T>,
+pub async fn get_proxy_abi(
+    provider: Arc<JsonRpcClient<HttpTransport>>,
     implementation_hash: FieldElement,
 ) -> Result<serde_json::Value, ModelError> {
-    let res = provider.get_class_by_hash(implementation_hash).await?;
+    let res = provider
+        .get_class(&BlockId::Tag(BlockTag::Latest), implementation_hash)
+        .await?;
     Ok(serde_json::to_value(res.abi)?)
 }

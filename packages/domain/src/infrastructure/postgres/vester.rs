@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use deadpool_postgres::Pool;
 use sea_query::{Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
+use tokio_postgres::error::SqlState;
 use uuid::Uuid;
 
 use crate::infrastructure::starknet::model::{StarknetValue, StarknetValueResolver};
@@ -72,7 +73,15 @@ impl PostgresVester {
             ])?
             .build_postgres(PostgresQueryBuilder);
 
-        let _res = client.execute(sql.as_str(), &values.as_params()).await?;
+        let _res = match client.execute(sql.as_str(), &values.as_params()).await {
+            Ok(res) => res,
+            Err(e) => {
+                if e.code().eq(&Some(&SqlState::UNIQUE_VIOLATION)) {
+                    return Ok(());
+                }
+                return Err(e.into());
+            }
+        };
 
         Ok(())
     }

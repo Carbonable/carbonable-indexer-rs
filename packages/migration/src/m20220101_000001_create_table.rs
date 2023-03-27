@@ -1,9 +1,10 @@
 use carbonable_domain::infrastructure::postgres::entity::{
-    AirdropIden, BadgeIden, BuyIden, ImplementationIden, MinterIden, OffseterIden, PaymentIden,
-    ProjectIden, SnapshotIden, TransferIden, TransferSingleIden, UriIden, VesterIden, VestingIden,
-    YielderIden,
+    AirdropIden, BadgeIden, BuyIden, ErcImplementation, ImplementationIden, MinterIden,
+    OffseterIden, PaymentIden, ProjectIden, SnapshotIden, TransferIden, TransferSingleIden,
+    UriIden, VesterIden, VestingIden, YielderIden,
 };
 use sea_orm_migration::prelude::*;
+use sea_query::extension::postgres::Type;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -51,6 +52,14 @@ impl MigrationTrait for Migration {
             )
             .await?;
         manager
+            .create_type(
+                Type::create()
+                    .as_enum(ErcImplementation::Enum)
+                    .values([ErcImplementation::Erc721, ErcImplementation::Erc3525])
+                    .to_owned(),
+            )
+            .await?;
+        manager
             .create_table(
                 Table::create()
                     .table(ProjectIden::Table)
@@ -65,7 +74,6 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(ProjectIden::Address)
                             .string()
                             .string_len(66)
-                            .unique_key()
                             .not_null(),
                     )
                     .col(
@@ -75,11 +83,12 @@ impl MigrationTrait for Migration {
                             .unique_key(),
                     )
                     .col(ColumnDef::new(ProjectIden::Name).string().not_null())
+                    .col(ColumnDef::new(ProjectIden::Slot).big_integer().null())
                     .col(
                         ColumnDef::new(ProjectIden::Symbol)
                             .string()
                             .string_len(20)
-                            .not_null(),
+                            .null(),
                     )
                     .col(ColumnDef::new(ProjectIden::TotalSupply).big_integer())
                     .col(
@@ -92,6 +101,14 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(ProjectIden::Times).array(ColumnType::DateTime))
                     .col(ColumnDef::new(ProjectIden::Absorptions).array(ColumnType::BigUnsigned))
                     .col(ColumnDef::new(ProjectIden::Setup).boolean().default(false))
+                    .col(
+                        ColumnDef::new(ProjectIden::ErcImplementation)
+                            .enumeration(
+                                ErcImplementation::Enum,
+                                [ErcImplementation::Erc721, ErcImplementation::Erc3525],
+                            )
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(ProjectIden::ImplementationId).uuid().null())
                     .col(ColumnDef::new(ProjectIden::UriId).uuid().null())
                     .foreign_key(
@@ -101,6 +118,14 @@ impl MigrationTrait for Migration {
                             .to(ImplementationIden::Table, ImplementationIden::Id)
                             .on_delete(ForeignKeyAction::SetNull)
                             .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .index(
+                        Index::create()
+                            .name("project_address_slot_idx")
+                            .table(ProjectIden::Table)
+                            .col(ProjectIden::Address)
+                            .col(ProjectIden::Slot)
+                            .unique(),
                     )
                     .to_owned(),
             )
@@ -165,11 +190,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .unique_key(),
                     )
-                    .col(
-                        ColumnDef::new(MinterIden::MaxSupply)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(MinterIden::MaxSupply).big_integer().null())
                     .col(
                         ColumnDef::new(MinterIden::ReservedSupply)
                             .big_integer()
@@ -187,10 +208,16 @@ impl MigrationTrait for Migration {
                             .default(false)
                             .not_null(),
                     )
+                    .col(ColumnDef::new(MinterIden::MaxBuyPerTx).big_integer().null())
                     .col(
-                        ColumnDef::new(MinterIden::MaxBuyPerTx)
+                        ColumnDef::new(MinterIden::MaxValuePerTx)
                             .big_integer()
-                            .not_null(),
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(MinterIden::MinValuePerTx)
+                            .big_integer()
+                            .null(),
                     )
                     .col(
                         ColumnDef::new(MinterIden::UnitPrice)
@@ -208,9 +235,13 @@ impl MigrationTrait for Migration {
                             .default(false)
                             .not_null(),
                     )
+                    .col(ColumnDef::new(MinterIden::TotalValue).big_unsigned().null())
                     .col(
-                        ColumnDef::new(MinterIden::TotalValue)
-                            .big_unsigned()
+                        ColumnDef::new(MinterIden::ErcImplementation)
+                            .enumeration(
+                                ErcImplementation::Enum,
+                                [ErcImplementation::Erc721, ErcImplementation::Erc3525],
+                            )
                             .not_null(),
                     )
                     .col(ColumnDef::new(MinterIden::Whitelist).json().null())
@@ -986,6 +1017,15 @@ impl MigrationTrait for Migration {
             .await?;
         manager
             .drop_table(Table::drop().table(ImplementationIden::Table).to_owned())
+            .await?;
+
+        manager
+            .drop_type(
+                Type::drop()
+                    .if_exists()
+                    .name(ErcImplementation::Enum)
+                    .to_owned(),
+            )
             .await
     }
 }

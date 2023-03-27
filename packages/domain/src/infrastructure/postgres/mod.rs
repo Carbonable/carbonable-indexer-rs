@@ -9,20 +9,21 @@ pub mod uri;
 mod vester;
 pub mod yielder;
 
-use crate::infrastructure::starknet::model::StarknetModel;
+use crate::{
+    domain::{Contract, Erc3525, Erc721},
+    infrastructure::starknet::model::StarknetModel,
+};
 
 use deadpool::managed::PoolError;
 use deadpool_postgres::{Manager, ManagerConfig, Pool, RecyclingMethod};
 use starknet::{
     core::types::FieldElement,
-    providers::{
-        jsonrpc::{HttpTransport, JsonRpcClient},
-        Provider,
-    },
+    providers::jsonrpc::{HttpTransport, JsonRpcClient},
 };
 use std::sync::Arc;
 use thiserror::Error;
-use tokio_postgres::{Config, NoTls};
+use tokio_postgres::{error::SqlState, Config, NoTls};
+use tracing::error;
 
 use self::{
     badge::PostgresBadge,
@@ -39,13 +40,18 @@ use self::{
 
 use super::{
     seed::{project::ProjectSeeder, vester::VesterSeeder, Seeder},
-    starknet::{get_proxy_abi, model::ModelError, payment::PaymentModel, uri::UriModel},
+    starknet::{
+        get_proxy_abi,
+        model::ModelError,
+        payment::PaymentModel,
+        uri::{Erc3525Metadata, Metadata, UriModel},
+    },
 };
 
 #[derive(Error, Debug)]
-pub enum PostgresError<T: Provider> {
+pub enum PostgresError {
     #[error(transparent)]
-    ParseConfigError(#[from] tokio_postgres::Error),
+    TokioPostgresError(#[from] tokio_postgres::Error),
     #[error("you have to provide 'DATABASE_URI' environment variable")]
     NoEnvVarProvided(#[from] std::env::VarError),
     #[error(transparent)]
@@ -55,7 +61,7 @@ pub enum PostgresError<T: Provider> {
     #[error("unexpected database error")]
     UnexpectedError,
     #[error(transparent)]
-    ModelError(#[from] ModelError<T>),
+    ModelError(#[from] ModelError),
     #[error(transparent)]
     SerdeError(#[from] serde_json::Error),
     #[error("failed to seed project")]
@@ -77,25 +83,28 @@ pub async fn get_connection(database_uri: Option<&str>) -> Result<Pool, Postgres
 }
 
 #[derive(Clone, Debug)]
-pub struct PostgresModels {
+pub struct PostgresModels<C: Contract> {
     pub project: Arc<PostgresProject>,
     pub implementation: Arc<PostgresImplementation>,
     pub uri: Arc<PostgresUri>,
     pub badge: Arc<PostgresBadge>,
-    pub minter: Arc<PostgresMinter>,
+    pub minter: Arc<PostgresMinter<C>>,
     pub payment: Arc<PostgresPayment>,
     pub vester: Arc<PostgresVester>,
     pub offseter: Arc<PostgresOffseter>,
     pub yielder: Arc<PostgresYielder>,
 }
 
-impl PostgresModels {
+impl<C> PostgresModels<C>
+where
+    C: Contract + Send + Sync,
+{
     pub fn new(db_client_pool: Arc<Pool>) -> Self {
         let project = Arc::new(PostgresProject::new(db_client_pool.clone()));
         let implementation = Arc::new(PostgresImplementation::new(db_client_pool.clone()));
         let uri = Arc::new(PostgresUri::new(db_client_pool.clone()));
         let badge = Arc::new(PostgresBadge::new(db_client_pool.clone()));
-        let minter = Arc::new(PostgresMinter::new(db_client_pool.clone()));
+        let minter = Arc::new(PostgresMinter::<C>::new(db_client_pool.clone()));
         let payment = Arc::new(PostgresPayment::new(db_client_pool.clone()));
         let vester = Arc::new(PostgresVester::new(db_client_pool.clone()));
         let offseter = Arc::new(PostgresOffseter::new(db_client_pool.clone()));
@@ -116,36 +125,67 @@ impl PostgresModels {
 }
 
 pub async fn find_or_create_project(
-    db_models: Arc<PostgresModels>,
+    db_models: Arc<PostgresModels<Erc721>>,
     address: &str,
 ) -> Result<Project, PostgresError> {
     match db_models.project.find_by_address(address).await? {
         Some(p) => Ok(p),
         None => {
-            let seeder = ProjectSeeder {
-                db_models: db_models.clone(),
-            };
+            let seeder = ProjectSeeder::<Erc721>::new(db_models.clone());
             match seeder.seed(address.to_string()).await {
                 Ok(_p) => Ok(db_models
                     .project
                     .find_by_address(address)
                     .await?
-                    .expect("project should have been created")),
-                Err(_e) => Err(PostgresError::FailedToSeedProject),
+                    .expect("erc721 project should have been created")),
+                Err(e) => {
+                    println!("error: {:?}", e);
+                    Err(PostgresError::FailedToSeedProject)
+                }
             }
         }
     }
 }
-pub async fn find_or_create_vester(
-    db_models: Arc<PostgresModels>,
+
+pub async fn find_or_create_3525_project(
+    db_models: Arc<PostgresModels<Erc3525>>,
     address: &str,
-) -> Result<Vester, PostgresError> {
+    slot: &u64,
+) -> Result<Project, PostgresError> {
+    match db_models
+        .project
+        .find_by_address_and_slot(address, slot)
+        .await?
+    {
+        Some(p) => Ok(p),
+        None => {
+            let seeder = ProjectSeeder::<Erc3525>::new(db_models.clone());
+            match seeder.seed(address.to_string()).await {
+                Ok(_p) => Ok(db_models
+                    .project
+                    .find_by_address(address)
+                    .await?
+                    .expect("erc3525 project should have been created")),
+                Err(e) => {
+                    println!("error: {:?}", e);
+                    Err(PostgresError::FailedToSeedProject)
+                }
+            }
+        }
+    }
+}
+
+pub async fn find_or_create_vester<C>(
+    db_models: Arc<PostgresModels<C>>,
+    address: &str,
+) -> Result<Vester, PostgresError>
+where
+    C: Contract + Send + Sync,
+{
     match db_models.vester.find_by_address(address).await? {
         Some(v) => Ok(v),
         None => {
-            let seeder = VesterSeeder {
-                db_models: db_models.clone(),
-            };
+            let seeder = VesterSeeder::<C>::new(db_models.clone());
             match seeder.seed(address.to_string()).await {
                 Ok(_v) => Ok(db_models
                     .vester
@@ -158,22 +198,40 @@ pub async fn find_or_create_vester(
     }
 }
 
-pub async fn find_or_create_payment(
-    db_models: Arc<PostgresModels>,
+pub async fn find_or_create_payment<C>(
+    db_models: Arc<PostgresModels<C>>,
     address: &str,
-) -> Result<Payment, PostgresError> {
+) -> Result<Payment, PostgresError>
+where
+    C: Contract + Send + Sync,
+{
     match db_models.payment.find_by_address(address).await? {
         Some(p) => Ok(p),
         None => {
             let payment_model = PaymentModel::new(FieldElement::from_hex_be(address).unwrap())?;
             let data = payment_model.load().await?;
-            let payment = db_models.payment.create(address, data).await?;
-            Ok(payment)
+            match db_models.payment.create(address, data).await {
+                Ok(payment) => Ok(payment),
+                Err(e) => match e {
+                    PostgresError::TokioPostgresError(e) => {
+                        if e.code().eq(&Some(&SqlState::UNIQUE_VIOLATION)) {
+                            return Ok(db_models
+                                .payment
+                                .find_by_address(address)
+                                .await?
+                                .expect("payment should have been created there"));
+                        }
+                        Err(e.into())
+                    }
+                    _ => Err(e),
+                },
+            }
         }
     }
 }
 
-pub async fn find_or_create_uri(
+// TODO: Find a better way to deduplicate this
+pub async fn find_or_create_uri_721(
     db_model: Arc<PostgresUri>,
     address: &str,
     project_uri: &str,
@@ -181,8 +239,8 @@ pub async fn find_or_create_uri(
     match db_model.find_by_uri(address).await? {
         Some(u) => Ok(u),
         None => {
-            let uri_model = UriModel::new(project_uri.to_string())?;
-            let metadata = uri_model.load().await?;
+            let uri_model = UriModel::<Erc721>::new(project_uri.to_string())?;
+            let metadata: Metadata = uri_model.load().await?;
 
             Ok(db_model
                 .create(address, serde_json::to_value(&metadata)?)
@@ -190,6 +248,24 @@ pub async fn find_or_create_uri(
         }
     }
 }
+pub async fn find_or_create_uri_3525(
+    db_model: Arc<PostgresUri>,
+    address: &str,
+    project_uri: &str,
+) -> Result<Uri, PostgresError> {
+    match db_model.find_by_uri(address).await? {
+        Some(u) => Ok(u),
+        None => {
+            let uri_model = UriModel::<Erc3525>::new(project_uri.to_string())?;
+            let metadata: Erc3525Metadata = uri_model.load().await?;
+
+            Ok(db_model
+                .create(address, serde_json::to_value(&metadata)?)
+                .await?)
+        }
+    }
+}
+
 pub async fn find_or_create_implementation(
     db_model: Arc<PostgresImplementation>,
     provider: Arc<JsonRpcClient<HttpTransport>>,

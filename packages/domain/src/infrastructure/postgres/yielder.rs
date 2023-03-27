@@ -52,7 +52,7 @@ impl PostgresYielder {
                     .expect("should have totalAbsorption")
                     .resolve("u64")
                     .into(),
-                data.get_mut("getSnapshotTime")
+                data.get_mut("getSnapshotedTime")
                     .expect("should have snapshotTime")
                     .resolve("datetime")
                     .into(),

@@ -1,5 +1,5 @@
 run_indexer:
-	DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ NETWORK=goerli SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 RUST_LOG=debug cargo run -p carbonable-indexer
+	DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ NETWORK=goerli SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 RUST_LOG=info cargo run -p carbonable-indexer
 
 run_api:
 	RUST_LOG=debug cargo run -p carbonable-api

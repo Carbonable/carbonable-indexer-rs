@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use deadpool_postgres::Pool;
+use tokio_postgres::error::SqlState;
 
 use crate::infrastructure::{
     postgres::entity::ProjectIden, starknet::model::StarknetValueResolver,
@@ -11,7 +12,10 @@ use uuid::Uuid;
 
 use crate::infrastructure::starknet::model::StarknetValue;
 
-use super::{entity::Project, PostgresError};
+use super::{
+    entity::{ErcImplementation, Project},
+    PostgresError,
+};
 
 #[derive(Debug)]
 pub struct PostgresProject {
@@ -32,6 +36,7 @@ impl PostgresProject {
                 ProjectIden::Slug,
                 ProjectIden::Address,
                 ProjectIden::Name,
+                ProjectIden::Slot,
                 ProjectIden::Symbol,
                 ProjectIden::TotalSupply,
                 ProjectIden::Owner,
@@ -39,8 +44,42 @@ impl PostgresProject {
                 ProjectIden::Times,
                 ProjectIden::Absorptions,
                 ProjectIden::Setup,
+                ProjectIden::ErcImplementation,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
+            .build_postgres(PostgresQueryBuilder);
+
+        match client.query_one(sql.as_str(), &values.as_params()).await {
+            Ok(res) => Ok(Some(res.into())),
+            Err(_) => Ok(None),
+        }
+    }
+
+    pub async fn find_by_address_and_slot(
+        &self,
+        address: &str,
+        slot: &u64,
+    ) -> Result<Option<Project>, PostgresError> {
+        let client = self.db_client_pool.get().await?;
+        let (sql, values) = Query::select()
+            .from(ProjectIden::Table)
+            .columns([
+                ProjectIden::Id,
+                ProjectIden::Slug,
+                ProjectIden::Address,
+                ProjectIden::Name,
+                ProjectIden::Slot,
+                ProjectIden::Symbol,
+                ProjectIden::TotalSupply,
+                ProjectIden::Owner,
+                ProjectIden::TonEquivalent,
+                ProjectIden::Times,
+                ProjectIden::Absorptions,
+                ProjectIden::Setup,
+                ProjectIden::ErcImplementation,
+            ])
+            .and_where(Expr::col(ProjectIden::Address).eq(address))
+            .and_where(Expr::col(ProjectIden::Slot).eq(*slot))
             .build_postgres(PostgresQueryBuilder);
 
         match client.query_one(sql.as_str(), &values.as_params()).await {
@@ -52,10 +91,15 @@ impl PostgresProject {
     pub async fn create(
         &self,
         mut data: HashMap<String, StarknetValue>,
+        erc_implementation: ErcImplementation,
         implementation_id: Option<Uuid>,
         uri_id: Option<Uuid>,
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
+        let total_supply_key = match data.get("totalSupply") {
+            None => "tokenSupplyInSlot",
+            Some(_) => "totalSupply",
+        };
         let (sql, values) = Query::insert()
             .into_table(ProjectIden::Table)
             .columns([
@@ -63,6 +107,7 @@ impl PostgresProject {
                 ProjectIden::Slug,
                 ProjectIden::Address,
                 ProjectIden::Name,
+                ProjectIden::Slot,
                 ProjectIden::Symbol,
                 ProjectIden::TotalSupply,
                 ProjectIden::Owner,
@@ -70,6 +115,7 @@ impl PostgresProject {
                 ProjectIden::Times,
                 ProjectIden::Absorptions,
                 ProjectIden::Setup,
+                ProjectIden::ErcImplementation,
                 ProjectIden::ImplementationId,
                 ProjectIden::UriId,
             ])
@@ -87,11 +133,12 @@ impl PostgresProject {
                     .expect("name has to be provided")
                     .resolve("string")
                     .into(),
+                None::<i64>.into(),
                 data.get_mut("symbol")
-                    .expect("symbol")
+                    .expect("should have symbol")
                     .resolve("string")
                     .into(),
-                data.get_mut("totalSupply")
+                data.get_mut(total_supply_key)
                     .expect("total supply has to be provided")
                     .resolve("u64")
                     .into(),
@@ -115,11 +162,20 @@ impl PostgresProject {
                     .expect("isSetup has to be provided")
                     .resolve("bool")
                     .into(),
+                Expr::val::<&str>(erc_implementation.into()).as_enum(ErcImplementation::Enum),
                 implementation_id.into(),
                 uri_id.into(),
             ])?
             .build_postgres(PostgresQueryBuilder);
-        let _result = client.execute(sql.as_str(), &values.as_params()).await?;
+        let _result = match client.execute(sql.as_str(), &values.as_params()).await {
+            Ok(res) => res,
+            Err(e) => {
+                if e.code().eq(&Some(&SqlState::UNIQUE_VIOLATION)) {
+                    return Ok(());
+                }
+                return Err(e.into());
+            }
+        };
         Ok(())
     }
 }

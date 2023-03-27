@@ -4,6 +4,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::value::Value;
 
+use crate::domain::{Contract, Erc3525, Erc721};
+
 use super::model::{ModelError, StarknetModel};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,28 +26,60 @@ pub struct Metadata {
     pub attributes: Vec<Attribute>,
 }
 
-pub struct UriModel {
-    client: Arc<Client>,
-    ipfs_link: String,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Erc3525Metadata {
+    pub name: String,
+    pub description: String,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub image: String,
+    pub banner_image_url: String,
+    pub external_url: String,
+    pub youtube_url: Option<String>,
 }
 
-impl UriModel {
+pub struct UriModel<C = Erc721> {
+    client: Arc<Client>,
+    ipfs_link: String,
+    contract_type: std::marker::PhantomData<C>,
+}
+
+impl<C> UriModel<C>
+where
+    C: Contract,
+{
     pub fn new(ipfs_link: String) -> Result<Self, ModelError> {
         Ok(Self {
             client: Arc::new(Client::new()),
             ipfs_link,
+            contract_type: std::marker::PhantomData::<C>,
         })
     }
 }
 
 #[async_trait::async_trait]
-impl StarknetModel<Metadata> for UriModel {
+impl StarknetModel<Metadata> for UriModel<Erc721> {
     async fn load(&self) -> Result<Metadata, ModelError> {
         let gateway = std::env::var("GATEWAY")?;
         let ipfs_uri = self.ipfs_link.replace("ipfs://", &gateway);
         let metadata: Metadata = self
             .client
             .get(ipfs_uri)
+            .send()
+            .await?
+            .json()
+            .await
+            .expect("failed to parse metadata");
+
+        Ok(metadata)
+    }
+}
+
+#[async_trait::async_trait]
+impl StarknetModel<Erc3525Metadata> for UriModel<Erc3525> {
+    async fn load(&self) -> Result<Erc3525Metadata, ModelError> {
+        let metadata: Erc3525Metadata = self
+            .client
+            .get(self.ipfs_link.clone())
             .send()
             .await?
             .json()

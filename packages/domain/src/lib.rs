@@ -1,2 +1,2 @@
-pub(crate) mod domain;
+pub mod domain;
 pub mod infrastructure;

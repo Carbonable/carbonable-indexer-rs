@@ -1,10 +1,13 @@
 use starknet::core::types::FieldElement;
 
-use crate::infrastructure::{
-    postgres::{find_or_create_implementation, find_or_create_uri, PostgresModels},
-    starknet::{
-        badge::BadgeModel,
-        model::{StarknetModel, StarknetValueResolver},
+use crate::{
+    domain::Contract,
+    infrastructure::{
+        postgres::{find_or_create_implementation, find_or_create_uri_721, PostgresModels},
+        starknet::{
+            badge::BadgeModel,
+            model::{StarknetModel, StarknetValueResolver},
+        },
     },
 };
 
@@ -12,12 +15,31 @@ use super::{DataSeederError, Seeder};
 use std::sync::Arc;
 
 #[derive(Debug)]
-pub struct BadgeSeeder {
-    pub db_models: Arc<PostgresModels>,
+pub struct BadgeSeeder<C>
+where
+    C: Contract,
+{
+    pub db_models: Arc<PostgresModels<C>>,
+    contract: std::marker::PhantomData<C>,
+}
+
+impl<C> BadgeSeeder<C>
+where
+    C: Contract,
+{
+    pub fn new(db_models: Arc<PostgresModels<C>>) -> Self {
+        Self {
+            db_models,
+            contract: std::marker::PhantomData::<C>,
+        }
+    }
 }
 
 #[async_trait::async_trait]
-impl Seeder for BadgeSeeder {
+impl<C> Seeder for BadgeSeeder<C>
+where
+    C: Contract + Send + Sync,
+{
     async fn seed(&self, address: String) -> Result<String, DataSeederError> {
         let db_models = self.db_models.clone();
         let badge_model = BadgeModel::new(FieldElement::from_hex_be(&address).unwrap())?;
@@ -41,7 +63,7 @@ impl Seeder for BadgeSeeder {
             implementation_hash.as_str(),
         )
         .await?;
-        let uri = find_or_create_uri(
+        let uri = find_or_create_uri_721(
             db_models.uri.clone(),
             address.as_str(),
             project_uri.as_str(),
@@ -56,6 +78,6 @@ impl Seeder for BadgeSeeder {
     }
 
     fn can_process(&self, seeder_type: String) -> bool {
-        seeder_type == "badge"
+        "badge" == seeder_type || "badge_3525" == seeder_type
     }
 }
