@@ -1,8 +1,10 @@
 pub mod badge;
+pub mod farming;
 pub mod minter;
 pub mod model;
 pub mod offseter;
 pub mod payment;
+pub mod portfolio;
 pub mod project;
 pub mod uri;
 pub mod vester;
@@ -113,5 +115,12 @@ pub async fn get_proxy_abi(
     let res = provider
         .get_class(&BlockId::Tag(BlockTag::Latest), implementation_hash)
         .await?;
-    Ok(serde_json::to_value(res.abi)?)
+    match res {
+        starknet::providers::jsonrpc::models::ContractClass::Sierra(c) => {
+            Ok(serde_json::to_value(c.abi)?)
+        }
+        starknet::providers::jsonrpc::models::ContractClass::Legacy(c) => {
+            Ok(serde_json::to_value(c.abi)?)
+        }
+    }
 }

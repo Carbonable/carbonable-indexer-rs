@@ -76,12 +76,7 @@ impl MigrationTrait for Migration {
                             .string_len(66)
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(ProjectIden::Slug)
-                            .string()
-                            .not_null()
-                            .unique_key(),
-                    )
+                    .col(ColumnDef::new(ProjectIden::Slug).string().not_null())
                     .col(ColumnDef::new(ProjectIden::Name).string().not_null())
                     .col(ColumnDef::new(ProjectIden::Slot).big_integer().null())
                     .col(
@@ -124,6 +119,14 @@ impl MigrationTrait for Migration {
                             .name("project_address_slot_idx")
                             .table(ProjectIden::Table)
                             .col(ProjectIden::Address)
+                            .col(ProjectIden::Slot)
+                            .unique(),
+                    )
+                    .index(
+                        Index::create()
+                            .name("project_slug_slot_idx")
+                            .table(ProjectIden::Table)
+                            .col(ProjectIden::Slug)
                             .col(ProjectIden::Slot)
                             .unique(),
                     )
@@ -219,11 +222,7 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .null(),
                     )
-                    .col(
-                        ColumnDef::new(MinterIden::UnitPrice)
-                            .big_unsigned()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(MinterIden::UnitPrice).double().not_null())
                     .col(
                         ColumnDef::new(MinterIden::WhitelistMerkleRoot)
                             .text()
@@ -235,7 +234,7 @@ impl MigrationTrait for Migration {
                             .default(false)
                             .not_null(),
                     )
-                    .col(ColumnDef::new(MinterIden::TotalValue).big_unsigned().null())
+                    .col(ColumnDef::new(MinterIden::TotalValue).double().null())
                     .col(
                         ColumnDef::new(MinterIden::ErcImplementation)
                             .enumeration(
@@ -576,11 +575,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(
-                        ColumnDef::new(VestingIden::Amount)
-                            .big_unsigned()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(VestingIden::Amount).double().not_null())
                     .col(
                         ColumnDef::new(VestingIden::Time)
                             .date_time()

@@ -1,3 +1,4 @@
+use bigdecimal::BigDecimal;
 use postgres_types::{FromSql, ToSql};
 use sea_query::{enum_def, Iden};
 use time::PrimitiveDateTime;
@@ -153,10 +154,10 @@ pub struct Minter {
     pub max_buy_per_tx: Option<u64>,
     pub max_value_per_tx: Option<u64>,
     pub min_value_per_tx: Option<u64>,
-    pub unit_price: u64,
+    pub unit_price: BigDecimal,
     pub whitelist_merkle_root: Option<String>,
     pub sold_out: bool,
-    pub total_value: Option<u64>,
+    pub total_value: Option<BigDecimal>,
     pub whitelist: Option<serde_json::Value>,
     pub erc_implementation: ErcImplementation,
     pub project_id: Option<Uuid>,
@@ -180,17 +181,36 @@ pub struct Offseter {
 pub struct Snapshot {
     pub id: Uuid,
     pub previous_time: PrimitiveDateTime,
-    pub previous_project_absorption: u64,
-    pub previous_offseter_absorption: u64,
-    pub previous_yielder_absorption: u64,
-    pub current_project_absorption: u64,
-    pub current_offseter_absorption: u64,
-    pub current_yielder_absorption: u64,
-    pub project_absorption: u64,
-    pub offseter_absorption: u64,
-    pub yielder_absorption: u64,
+    pub previous_project_absorption: i64,
+    pub previous_offseter_absorption: i64,
+    pub previous_yielder_absorption: i64,
+    pub current_project_absorption: i64,
+    pub current_offseter_absorption: i64,
+    pub current_yielder_absorption: i64,
+    pub project_absorption: i64,
+    pub offseter_absorption: i64,
+    pub yielder_absorption: i64,
     pub time: PrimitiveDateTime,
     pub yielder_id: Option<Uuid>,
+}
+impl From<tokio_postgres::Row> for Snapshot {
+    fn from(value: tokio_postgres::Row) -> Self {
+        Self {
+            id: value.get(0),
+            previous_time: value.get(1),
+            previous_project_absorption: value.get(2),
+            previous_offseter_absorption: value.get(3),
+            previous_yielder_absorption: value.get(4),
+            current_project_absorption: value.get(5),
+            current_offseter_absorption: value.get(6),
+            current_yielder_absorption: value.get(7),
+            project_absorption: value.get(8),
+            offseter_absorption: value.get(9),
+            yielder_absorption: value.get(10),
+            time: value.get(11),
+            yielder_id: None,
+        }
+    }
 }
 
 #[enum_def]
@@ -208,9 +228,20 @@ pub struct Yielder {
 #[enum_def]
 pub struct Vesting {
     pub id: Uuid,
-    pub amount: u64,
+    pub amount: f64,
     pub time: PrimitiveDateTime,
     pub yielder_id: Option<Uuid>,
+}
+
+impl From<tokio_postgres::Row> for Vesting {
+    fn from(value: tokio_postgres::Row) -> Self {
+        Self {
+            id: value.get(0),
+            amount: value.get(1),
+            time: value.get(2),
+            yielder_id: None,
+        }
+    }
 }
 
 #[enum_def]

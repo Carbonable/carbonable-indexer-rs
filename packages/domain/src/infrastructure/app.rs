@@ -15,6 +15,8 @@ pub struct Args {
 pub enum ConfigureApplicationError {
     #[error(transparent)]
     ConfigurationFailed(#[from] Box<dyn std::error::Error>),
+    #[error(transparent)]
+    StdIoError(#[from] std::io::Error),
 }
 
 pub async fn configure_application() -> Result<Args, ConfigureApplicationError> {

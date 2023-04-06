@@ -4,6 +4,7 @@ pub mod app;
 pub mod postgres;
 pub mod seed;
 pub mod starknet;
+pub mod view_model;
 
 pub async fn flatten<T, E: std::error::Error + std::convert::From<tokio::task::JoinError>>(
     handle: JoinHandle<Result<T, E>>,

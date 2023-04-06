@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 apibara-sdk.workspace = true
+bigdecimal.workspace = true
 starknet.workspace = true
 async-trait.workspace = true
 futures.workspace = true
