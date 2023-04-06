@@ -1,4 +1,5 @@
 pub mod event_source;
+pub mod project;
 
 pub trait Contract {}
 

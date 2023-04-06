@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use bigdecimal::BigDecimal;
 use deadpool_postgres::Pool;
 use sea_query::{Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
@@ -88,7 +89,7 @@ impl PostgresMinter<Erc721> {
                     .into(),
                 data.get_mut("getUnitPrice")
                     .expect("should have getUnitPrice")
-                    .resolve("u64")
+                    .resolve("bigint")
                     .into(),
                 data.get_mut("getWhitelistMerkleRoot")
                     .expect("should have getWhitelistMerkleRoot")
@@ -100,7 +101,7 @@ impl PostgresMinter<Erc721> {
                     .into(),
                 data.get_mut("getTotalValue")
                     .expect("should have getTotalValue")
-                    .resolve("u64")
+                    .resolve("bigint")
                     .into(),
                 Expr::val::<&str>(ErcImplementation::Erc721.into())
                     .as_enum(ErcImplementation::Enum),
@@ -125,6 +126,17 @@ impl PostgresMinter<Erc3525> {
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
         let id = uuid::Uuid::new_v4();
+        let unit_price: BigDecimal = data
+            .get_mut("getUnitPrice")
+            .expect("should have getUnitPrice")
+            .resolve("bigint")
+            .into();
+        let max_value: BigDecimal = data
+            .get_mut("getMaxValue")
+            .expect("should have getMaxValue")
+            .resolve("bigint")
+            .into();
+        let total_value = &unit_price * max_value;
         let (sql, values) = Query::insert()
             .into_table(MinterIden::Table)
             .columns([
@@ -137,6 +149,7 @@ impl PostgresMinter<Erc3525> {
                 MinterIden::MaxValuePerTx,
                 MinterIden::MinValuePerTx,
                 MinterIden::UnitPrice,
+                MinterIden::TotalValue,
                 MinterIden::WhitelistMerkleRoot,
                 MinterIden::SoldOut,
                 MinterIden::ErcImplementation,
@@ -167,10 +180,8 @@ impl PostgresMinter<Erc3525> {
                     .expect("should have getMaxBuyPerTx")
                     .resolve("u64")
                     .into(),
-                data.get_mut("getUnitPrice")
-                    .expect("should have getUnitPrice")
-                    .resolve("u64")
-                    .into(),
+                unit_price.into(),
+                total_value.into(),
                 data.get_mut("getWhitelistMerkleRoot")
                     .expect("should have getWhitelistMerkleRoot")
                     .resolve("string")

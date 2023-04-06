@@ -1,12 +1,13 @@
 pub mod badge;
 pub mod entity;
+pub mod farming;
 pub mod implementation;
 pub mod minter;
 pub mod offseter;
 pub mod payment;
 pub mod project;
 pub mod uri;
-mod vester;
+pub mod vester;
 pub mod yielder;
 
 use crate::{

@@ -150,6 +150,10 @@ impl StarknetModel<Vec<HashMap<String, StarknetValue>>> for ProjectModel<Erc3525
                 "address".to_string(),
                 StarknetValue::new(vec![self.address]),
             );
+            slot_data.insert(
+                "slot".to_string(),
+                StarknetValue::from_resolved_value(StarknetResolvedValue::Unsigned(slot)),
+            );
 
             slot_data.extend(generic_data.clone().into_iter().map(|(k, v)| (k, v)));
 

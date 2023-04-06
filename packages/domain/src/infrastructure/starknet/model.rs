@@ -1,3 +1,4 @@
+use bigdecimal::{BigDecimal, ToPrimitive};
 use std::{collections::HashMap, sync::Arc};
 
 use starknet::{
@@ -41,6 +42,8 @@ pub enum ModelError {
     SerdeError(#[from] serde_json::Error),
     #[error(transparent)]
     JoinError(#[from] JoinError),
+    #[error("invalid data set on field {0}")]
+    InvalidDataSet(String),
 }
 
 #[async_trait::async_trait]
@@ -48,7 +51,7 @@ pub trait StarknetModel<T> {
     async fn load(&self) -> Result<T, ModelError>;
 }
 
-fn get_call_function(
+pub fn get_call_function(
     address: &FieldElement,
     selector: &str,
     calldata: Vec<FieldElement>,
@@ -86,6 +89,42 @@ pub(crate) async fn load_blockchain_data(
 
     match futures::future::try_join_all(handles).await {
         Ok(res) => Ok(to_hash_map(res)),
+        Err(e) => Err(e),
+    }
+}
+/// Get blockchain data with a whole call construction
+/// Async & multi-threaded
+pub async fn parallelize_blockchain_rpc_calls(
+    provider: Arc<JsonRpcClient<HttpTransport>>,
+    data: Vec<(String, &'static str, Vec<FieldElement>)>,
+) -> Result<Vec<Vec<FieldElement>>, ModelError> {
+    let mut handles = vec![];
+    for (address, endpoint, values) in data.into_iter() {
+        let provider = provider.clone();
+        let address = address.to_string();
+        let endpoint = endpoint.to_string();
+        let handle = tokio::spawn(async move {
+            match provider
+                .call(
+                    get_call_function(
+                        &FieldElement::from_hex_be(address.as_str()).unwrap(),
+                        endpoint.as_str(),
+                        values.to_vec(),
+                    ),
+                    &BlockId::Tag(BlockTag::Latest),
+                )
+                .await
+            {
+                Ok(res) => Ok(res),
+                Err(err) => Err(ModelError::ProviderError(err)),
+            }
+        });
+
+        handles.push(flatten(handle));
+    }
+
+    match futures::future::try_join_all(handles).await {
+        Ok(res) => Ok(res),
         Err(e) => Err(e),
     }
 }
@@ -215,13 +254,25 @@ impl StarknetValueResolver for StarknetValue {
             }
             "u64" => {
                 let int = u64::try_from(self.inner.pop().unwrap()).unwrap();
-                let resolved = StarknetResolvedValue::Int(int);
+                let resolved = StarknetResolvedValue::Unsigned(int);
+                self.resolved = Some(resolved.clone());
+                resolved
+            }
+            "i64" => {
+                let decimal = self.inner.first().unwrap().to_owned().to_big_decimal(0);
+                let resolved = StarknetResolvedValue::Int(decimal.to_i64().unwrap());
+                self.resolved = Some(resolved.clone());
+                resolved
+            }
+            "bigint" => {
+                let big_decimal = self.inner.first().unwrap().to_owned().to_big_decimal(0);
+                let resolved = StarknetResolvedValue::BigInt(big_decimal);
                 self.resolved = Some(resolved.clone());
                 resolved
             }
             "u256" => {
                 let int = u64::try_from(self.inner.first().unwrap().to_owned()).unwrap();
-                let resolved = StarknetResolvedValue::Int(int);
+                let resolved = StarknetResolvedValue::Unsigned(int);
                 self.resolved = Some(resolved.clone());
                 resolved
             }
@@ -260,22 +311,34 @@ impl StarknetValueResolver for StarknetValue {
 #[derive(Clone, Debug)]
 pub enum StarknetResolvedValue {
     Address(String),
-    Int(u64),
+    Unsigned(u64),
+    Int(i64),
     Float,
     String(String),
     Bool(bool),
     IntArray(Vec<u64>),
     DateArray,
     Date(OffsetDateTime),
+    BigInt(BigDecimal),
 }
 
 impl From<StarknetResolvedValue> for String {
     fn from(value: StarknetResolvedValue) -> Self {
         match value {
             StarknetResolvedValue::String(s) => s,
-            StarknetResolvedValue::Int(i) => i.to_string(),
+            StarknetResolvedValue::Unsigned(i) => i.to_string(),
             StarknetResolvedValue::Address(a) => a,
             _ => panic!("cannot convert StarknetResolvedValue to string"),
+        }
+    }
+}
+
+impl From<StarknetResolvedValue> for BigDecimal {
+    fn from(value: StarknetResolvedValue) -> Self {
+        match value {
+            StarknetResolvedValue::BigInt(s) => s,
+            StarknetResolvedValue::Unsigned(_i) => BigDecimal::from(value),
+            _ => panic!("cannot convert StarknetResolvedValue to big decimal"),
         }
     }
 }
@@ -283,7 +346,8 @@ impl From<StarknetResolvedValue> for String {
 impl From<StarknetResolvedValue> for i64 {
     fn from(value: StarknetResolvedValue) -> Self {
         match value {
-            StarknetResolvedValue::Int(i) => i64::try_from(i).unwrap(),
+            StarknetResolvedValue::Unsigned(i) => i64::try_from(i).unwrap(),
+            StarknetResolvedValue::Int(i) => i,
             _ => panic!("cannot convert StarknetResolvedValue to i64"),
         }
     }
@@ -292,7 +356,7 @@ impl From<StarknetResolvedValue> for i64 {
 impl From<StarknetResolvedValue> for u64 {
     fn from(value: StarknetResolvedValue) -> Self {
         match value {
-            StarknetResolvedValue::Int(i) => i,
+            StarknetResolvedValue::Unsigned(i) => i,
             _ => panic!("cannot convert StarknetResolvedValue to u64"),
         }
     }
@@ -303,7 +367,7 @@ impl From<StarknetResolvedValue> for sea_query::Value {
         match value {
             StarknetResolvedValue::String(s) => sea_query::Value::String(Some(Box::new(s))),
             StarknetResolvedValue::Address(s) => sea_query::Value::String(Some(Box::new(s))),
-            StarknetResolvedValue::Int(i) => sea_query::Value::BigUnsigned(Some(i)),
+            StarknetResolvedValue::Unsigned(i) => sea_query::Value::BigUnsigned(Some(i)),
             StarknetResolvedValue::Bool(b) => sea_query::Value::Bool(Some(b)),
             StarknetResolvedValue::IntArray(ia) => sea_query::Value::Array(
                 sea_query::ArrayType::BigUnsigned,
@@ -318,6 +382,10 @@ impl From<StarknetResolvedValue> for sea_query::Value {
             StarknetResolvedValue::Date(d) => {
                 sea_query::Value::TimeDateTimeWithTimeZone(Some(Box::new(d)))
             }
+            StarknetResolvedValue::BigInt(big_decimal) => {
+                sea_query::Value::BigDecimal(Some(Box::new(big_decimal)))
+            }
+            StarknetResolvedValue::Int(i) => sea_query::Value::BigInt(Some(i)),
         }
     }
 }

@@ -4,16 +4,19 @@ use deadpool_postgres::Pool;
 use tokio_postgres::error::SqlState;
 
 use crate::infrastructure::{
-    postgres::entity::ProjectIden, starknet::model::StarknetValueResolver,
+    postgres::entity::ProjectIden,
+    starknet::model::StarknetValueResolver,
+    view_model::{portfolio::ProjectWithMinterAndPaymentViewModel, project::ProjectViewModel},
 };
 use sea_query::{Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
+use tracing::error;
 use uuid::Uuid;
 
 use crate::infrastructure::starknet::model::StarknetValue;
 
 use super::{
-    entity::{ErcImplementation, Project},
+    entity::{ErcImplementation, MinterIden, PaymentIden, Project, UriIden},
     PostgresError,
 };
 
@@ -55,6 +58,40 @@ impl PostgresProject {
         }
     }
 
+    pub async fn find_by_slug(
+        &self,
+        slug: &str,
+    ) -> Result<Option<ProjectViewModel>, PostgresError> {
+        let client = self.db_client_pool.get().await?;
+        let (sql, values) = Query::select()
+            .columns([
+                (ProjectIden::Table, ProjectIden::Id),
+                (ProjectIden::Table, ProjectIden::Address),
+                (ProjectIden::Table, ProjectIden::Name),
+                (ProjectIden::Table, ProjectIden::Slug),
+                (ProjectIden::Table, ProjectIden::ErcImplementation),
+            ])
+            .columns([
+                (UriIden::Table, UriIden::Id),
+                (UriIden::Table, UriIden::Data),
+            ])
+            .from(ProjectIden::Table)
+            .left_join(
+                UriIden::Table,
+                Expr::col((ProjectIden::Table, ProjectIden::UriId))
+                    .equals((UriIden::Table, UriIden::Id)),
+            )
+            .and_where(Expr::col((ProjectIden::Table, ProjectIden::Slug)).eq(slug))
+            .build_postgres(PostgresQueryBuilder);
+        match client.query_one(sql.as_str(), &values.as_params()).await {
+            Ok(res) => Ok(Some(res.into())),
+            Err(e) => {
+                error!("{:#?}", e);
+                Ok(None)
+            }
+        }
+    }
+
     pub async fn find_by_address_and_slot(
         &self,
         address: &str,
@@ -88,6 +125,49 @@ impl PostgresProject {
         }
     }
 
+    pub async fn find_projects_with_minter_and_payment(
+        &self,
+    ) -> Result<Vec<ProjectWithMinterAndPaymentViewModel>, PostgresError> {
+        let client = self.db_client_pool.get().await?;
+        let (sql, values) = Query::select()
+            .columns([
+                (ProjectIden::Table, ProjectIden::Id),
+                (ProjectIden::Table, ProjectIden::Address),
+                (ProjectIden::Table, ProjectIden::Name),
+                (ProjectIden::Table, ProjectIden::Slug),
+                (ProjectIden::Table, ProjectIden::Slot),
+                (ProjectIden::Table, ProjectIden::ErcImplementation),
+            ])
+            .columns([
+                (MinterIden::Table, MinterIden::Id),
+                (MinterIden::Table, MinterIden::UnitPrice),
+                (MinterIden::Table, MinterIden::Address),
+            ])
+            .columns([
+                (PaymentIden::Table, PaymentIden::Id),
+                (PaymentIden::Table, PaymentIden::Decimals),
+            ])
+            .from(ProjectIden::Table)
+            .left_join(
+                MinterIden::Table,
+                Expr::col((MinterIden::Table, MinterIden::ProjectId))
+                    .equals((ProjectIden::Table, ProjectIden::Id)),
+            )
+            .left_join(
+                PaymentIden::Table,
+                Expr::col((PaymentIden::Table, PaymentIden::Id))
+                    .equals((MinterIden::Table, MinterIden::PaymentId)),
+            )
+            .build_postgres(PostgresQueryBuilder);
+        match client.query(sql.as_str(), &values.as_params()).await {
+            Ok(res) => Ok(res.into_iter().map(|r| r.into()).collect()),
+            Err(e) => {
+                error!("{:#?}", e);
+                Ok(vec![])
+            }
+        }
+    }
+
     pub async fn create(
         &self,
         mut data: HashMap<String, StarknetValue>,
@@ -99,6 +179,10 @@ impl PostgresProject {
         let total_supply_key = match data.get("totalSupply") {
             None => "tokenSupplyInSlot",
             Some(_) => "totalSupply",
+        };
+        let slot: u64 = match data.get_mut("slot") {
+            Some(s) => s.resolve("u64").into(),
+            None => 0,
         };
         let (sql, values) = Query::insert()
             .into_table(ProjectIden::Table)
@@ -133,7 +217,7 @@ impl PostgresProject {
                     .expect("name has to be provided")
                     .resolve("string")
                     .into(),
-                None::<i64>.into(),
+                slot.into(),
                 data.get_mut("symbol")
                     .expect("should have symbol")
                     .resolve("string")
@@ -170,6 +254,7 @@ impl PostgresProject {
         let _result = match client.execute(sql.as_str(), &values.as_params()).await {
             Ok(res) => res,
             Err(e) => {
+                error!("while create project {:#?}", e);
                 if e.code().eq(&Some(&SqlState::UNIQUE_VIOLATION)) {
                     return Ok(());
                 }
