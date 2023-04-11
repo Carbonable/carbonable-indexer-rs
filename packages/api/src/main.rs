@@ -27,8 +27,8 @@ pub struct AppDependencies {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
     info!("Starting Carbonable API...");
+    env_logger::init();
     let configuration = match configure_application().await {
         Ok(c) => c,
         Err(_) => {

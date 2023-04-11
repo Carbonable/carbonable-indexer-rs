@@ -1,9 +1,13 @@
+use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use starknet::core::types::FieldElement;
 use time::PrimitiveDateTime;
 use uuid::Uuid;
 
-use crate::infrastructure::starknet::model::{StarknetValue, StarknetValueResolver};
+use crate::{
+    domain::project::format_ton,
+    infrastructure::starknet::model::{StarknetValue, StarknetValueResolver},
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UriViewModel {
@@ -87,10 +91,18 @@ pub struct CompleteFarmingData {
     pub yielder_id: Option<Uuid>,
     pub yielder_address: Option<String>,
     pub vester_address: Option<String>,
+    pub minter_id: Option<Uuid>,
+    pub total_supply: Option<BigDecimal>,
+}
+impl CompleteFarmingData {
+    pub fn final_absorption(&self) -> i64 {
+        self.absorptions.last().copied().unwrap_or_default()
+    }
 }
 
 impl From<tokio_postgres::Row> for CompleteFarmingData {
     fn from(value: tokio_postgres::Row) -> Self {
+        let total_supply: Option<f64> = value.get(10);
         Self {
             id: value.get(0),
             address: value.get(1),
@@ -101,6 +113,11 @@ impl From<tokio_postgres::Row> for CompleteFarmingData {
             yielder_id: value.get(6),
             yielder_address: value.get(7),
             vester_address: value.get(8),
+            minter_id: value.get(9),
+            total_supply: match total_supply {
+                Some(value) => BigDecimal::from_f64(value),
+                None => None,
+            },
         }
     }
 }
@@ -115,7 +132,7 @@ pub struct UnconnectedFarmingData {
     pub total_removal: i64,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(tag = "apr")]
 pub enum ProjectApr {
     #[default]
@@ -133,7 +150,7 @@ pub enum ProjectStatus {
     Live,
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct ContractsList {
     pub vester: String,
     pub yielder: String,
@@ -201,5 +218,131 @@ impl
                 offseter: farming_data.offseter_address.unwrap_or_default(),
             },
         }
+    }
+}
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct Overview {
+    total_removal: f64,
+    tvl: f64,
+    current_apr: ProjectApr,
+    total_yielded: f64,
+    total_offseted: f64,
+}
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct PoolLiquidity {
+    total: f64,
+    available: f64,
+}
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct CarbonCredits {
+    generated_credits: BigDecimal,
+    to_be_generated: BigDecimal,
+    r#yield: PoolLiquidity,
+    offset: PoolLiquidity,
+}
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct Allocation {
+    total: BigDecimal,
+    r#yield: i64,
+    offseted: i64,
+    undeposited: i64,
+}
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct CustomerDetailsProjectData {
+    overview: Overview,
+    carbon_credits: CarbonCredits,
+    allocation: Allocation,
+    contracts: ContractsList,
+}
+
+impl CustomerDetailsProjectData {
+    pub fn with_contracts(
+        &mut self,
+        vester_address: &str,
+        yielder_address: &str,
+        offseter_address: &str,
+    ) -> &mut Self {
+        self.contracts = ContractsList {
+            vester: String::from(vester_address),
+            yielder: String::from(yielder_address),
+            offseter: String::from(offseter_address),
+        };
+        self
+    }
+
+    pub fn with_apr(&mut self, apr: ProjectApr) -> &mut Self {
+        self.overview.current_apr = apr;
+        self
+    }
+
+    pub fn compute_blockchain_data(
+        &mut self,
+        data: Vec<Vec<FieldElement>>,
+        project: &CompleteFarmingData,
+    ) -> &mut Self {
+        let balance_of: BigDecimal = StarknetValue::new(data[0].clone())
+            .resolve("bigdecimal")
+            .into();
+        let current_absorption: i64 = StarknetValue::new(data[1].clone()).resolve("i64").into();
+        let offseter_deposited_of: i64 = StarknetValue::new(data[2].clone()).resolve("i64").into();
+        let yielder_deposited_of: i64 = StarknetValue::new(data[3].clone()).resolve("i64").into();
+        let claimable_of: BigDecimal = StarknetValue::new(data[4].clone())
+            .resolve("bigdecimal")
+            .into();
+        let releasable_of: BigDecimal = StarknetValue::new(data[5].clone())
+            .resolve("bigdecimal")
+            .into();
+        let claimed_of: BigDecimal = StarknetValue::new(data[6].clone())
+            .resolve("bigdecimal")
+            .into();
+        let released_of: BigDecimal = StarknetValue::new(data[7].clone())
+            .resolve("bigdecimal")
+            .into();
+        let offseter_total_deposited: i64 =
+            StarknetValue::new(data[8].clone()).resolve("i64").into();
+        let yielder_total_deposited: i64 =
+            StarknetValue::new(data[9].clone()).resolve("i64").into();
+        let total_supply = project
+            .total_supply
+            .clone()
+            .unwrap_or(BigDecimal::from_usize(0).unwrap());
+
+        self.overview.total_removal = format_ton(
+            (project.final_absorption() - current_absorption) as f64,
+            project.ton_equivalent as f64,
+        );
+        self.overview.total_yielded = yielder_total_deposited as f64;
+        self.overview.total_offseted = offseter_total_deposited as f64;
+
+        self.carbon_credits.generated_credits = format_ton(
+            (current_absorption / total_supply.clone()) * balance_of.clone(),
+            project.ton_equivalent.into(),
+        );
+        self.carbon_credits.to_be_generated = format_ton(
+            ((project.final_absorption() - current_absorption) / total_supply.clone())
+                * balance_of.clone(),
+            project.ton_equivalent.into(),
+        );
+        self.carbon_credits.r#yield = PoolLiquidity {
+            available: yielder_deposited_of as f64,
+            total: yielder_total_deposited as f64,
+        };
+        self.carbon_credits.offset = PoolLiquidity {
+            available: offseter_deposited_of as f64,
+            total: offseter_total_deposited as f64,
+        };
+
+        self.allocation.total = balance_of.clone();
+        self.allocation.r#yield = yielder_deposited_of;
+        self.allocation.offseted = offseter_deposited_of;
+        self.allocation.undeposited =
+            balance_of.to_i64().unwrap() - (yielder_deposited_of + offseter_deposited_of);
+
+        self
+    }
+
+    pub fn build(&self) -> Self {
+        self.clone()
     }
 }
