@@ -12,8 +12,9 @@ use crate::infrastructure::{
     flatten,
     postgres::entity::{Snapshot, Vesting},
     view_model::farming::{
-        CompleteFarmingData, CustomerGlobalData, CustomerGlobalDataForComputation,
-        CustomerListingProjectData, ProjectApr, ProjectStatus, UnconnectedFarmingData,
+        CompleteFarmingData, CustomerDetailsProjectData, CustomerGlobalData,
+        CustomerGlobalDataForComputation, CustomerListingProjectData, ProjectApr, ProjectStatus,
+        UnconnectedFarmingData,
     },
 };
 use std::{ops::Div, sync::Arc};
@@ -237,7 +238,8 @@ pub async fn get_unconnected_project_data(
         .to_big_decimal(0)
         .to_f64()
         .unwrap();
-    let last_absorptions = farming_data.absorptions.last().unwrap();
+    // Asserted in controller that absorptions are not empty
+    let last_absorptions = farming_data.final_absorption();
 
     Ok(UnconnectedFarmingData {
         apr,
@@ -295,4 +297,88 @@ pub async fn get_customer_listing_project_data(
         project_data,
         farming_data,
     )))
+}
+
+/// Customer project data for project with slug
+pub async fn get_customer_details_project_data(
+    project_data: CustomerGlobalDataForComputation,
+    farming_data: CompleteFarmingData,
+    wallet: &str,
+    snapshots: Vec<Snapshot>,
+    vestings: Vec<Vesting>,
+    total_value: f64,
+) -> Result<CustomerDetailsProjectData, ModelError> {
+    let mut customer_details_project_data = CustomerDetailsProjectData::default();
+
+    let apr = get_project_current_apr(snapshots, vestings, total_value)?;
+    let mut builder = customer_details_project_data
+        .with_contracts(
+            &project_data.vester_address,
+            &project_data.yielder_address,
+            &project_data.offseter_address,
+        )
+        .with_apr(apr);
+
+    let provider = Arc::new(get_starknet_rpc_from_env()?);
+    let values = [
+        (
+            project_data.project_address.to_string(),
+            "balanceOf",
+            vec![FieldElement::from_hex_be(wallet).unwrap()],
+        ),
+        (
+            project_data.project_address.to_string(),
+            "getCurrentAbsorption",
+            vec![
+                FieldElement::from_dec_str(project_data.project_slot.to_string().as_str()).unwrap(),
+            ],
+        ),
+        (
+            project_data.offseter_address.to_string(),
+            "getDepositedOf",
+            vec![FieldElement::from_hex_be(wallet).unwrap()],
+        ),
+        (
+            project_data.yielder_address.to_string(),
+            "getDepositedOf",
+            vec![FieldElement::from_hex_be(wallet).unwrap()],
+        ),
+        (
+            project_data.offseter_address.to_string(),
+            "getClaimableOf",
+            vec![FieldElement::from_hex_be(wallet).unwrap()],
+        ),
+        (
+            project_data.vester_address.to_string(),
+            "releasableOf",
+            vec![FieldElement::from_hex_be(wallet).unwrap()],
+        ),
+        (
+            project_data.offseter_address.to_string(),
+            "getClaimedOf",
+            vec![FieldElement::from_hex_be(wallet).unwrap()],
+        ),
+        (
+            project_data.vester_address.to_string(),
+            "releasedOf",
+            vec![FieldElement::from_hex_be(wallet).unwrap()],
+        ),
+        (
+            project_data.offseter_address.to_string(),
+            "getTotalDeposited",
+            vec![],
+        ),
+        (
+            project_data.yielder_address.to_string(),
+            "getTotalDeposited",
+            vec![],
+        ),
+    ];
+
+    let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
+    builder = builder.compute_blockchain_data(data, &farming_data);
+
+    let customer_details_project_data = builder.build();
+
+    Ok(customer_details_project_data)
 }

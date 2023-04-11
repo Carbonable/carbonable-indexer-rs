@@ -129,7 +129,7 @@ impl PostgresFarming {
     pub async fn get_complete_farming_data(
         &self,
         slug: String,
-    ) -> Result<CompleteFarmingData, PostgresError> {
+    ) -> Result<Option<CompleteFarmingData>, PostgresError> {
         let client = self.db_client_pool.clone().get().await?;
         let (sql, values) = Query::select()
             .columns([
@@ -145,6 +145,10 @@ impl PostgresFarming {
                 (YielderIden::Table, YielderIden::Address),
             ])
             .column((VesterIden::Table, VesterIden::Address))
+            .columns([
+                (MinterIden::Table, MinterIden::Id),
+                (MinterIden::Table, MinterIden::TotalValue),
+            ])
             .left_join(
                 YielderIden::Table,
                 Expr::col((YielderIden::Table, YielderIden::ProjectId))
@@ -160,6 +164,11 @@ impl PostgresFarming {
                 Expr::col((VesterIden::Table, VesterIden::Id))
                     .equals((YielderIden::Table, YielderIden::VesterId)),
             )
+            .left_join(
+                MinterIden::Table,
+                Expr::col((MinterIden::Table, MinterIden::ProjectId))
+                    .equals((ProjectIden::Table, ProjectIden::Id)),
+            )
             .and_where(Expr::col((ProjectIden::Table, ProjectIden::Slug)).eq(slug))
             .and_where(
                 Expr::col((ProjectIden::Table, ProjectIden::ErcImplementation))
@@ -168,11 +177,13 @@ impl PostgresFarming {
             )
             .from(ProjectIden::Table)
             .build_postgres(PostgresQueryBuilder);
-        match client.query_one(sql.as_str(), &values.as_params()).await {
-            Ok(res) => Ok(res.into()),
+
+        match client.query_opt(sql.as_str(), &values.as_params()).await {
+            Ok(None) => Ok(None),
+            Ok(Some(res)) => Ok(Some(res.into())),
             Err(e) => {
                 error!("{:#?}", e);
-                Err(PostgresError::TokioPostgresError(e))
+                Ok(None)
             }
         }
     }

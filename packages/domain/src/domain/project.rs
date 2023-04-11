@@ -12,3 +12,10 @@ pub enum ProjectError {
     #[error(transparent)]
     ModelError(#[from] ModelError),
 }
+
+pub fn format_ton<T>(value: T, ton_equivalent: T) -> T
+where
+    T: std::ops::Div<Output = T>,
+{
+    value / ton_equivalent
+}

@@ -44,7 +44,18 @@ pub async fn unconnected(
     let mut project_data = project_model
         .get_data_for_farming(Some(slug.to_string()))
         .await?;
-    let farming_data = project_model.get_complete_farming_data(slug).await?;
+    let farming_data = match project_model.get_complete_farming_data(slug).await? {
+        Some(id) => id,
+        None => {
+            return Ok(HttpResponse::NotFound().json(
+                ServerResponse::<UnconnectedFarmingData>::Error {
+                    code: 404,
+                    error_message: "Not found".to_string(),
+                    message: "Project not found".to_string(),
+                },
+            ))
+        }
+    };
     let yielder_id = match farming_data.yielder_id {
         Some(id) => id,
         None => {
@@ -61,7 +72,7 @@ pub async fn unconnected(
     let snapshots = project_model.get_snapshots(yielder_id).await?;
     let vestings = project_model.get_vestings(yielder_id).await?;
 
-    if project_data.is_empty() {
+    if project_data.is_empty() || farming_data.absorptions.is_empty() {
         return Ok(HttpResponse::NotFound().json(
             ServerResponse::<UnconnectedFarmingData>::Error {
                 code: 404,
@@ -91,7 +102,18 @@ pub async fn connected(
     let mut project_data = project_model
         .get_data_for_farming(Some(slug.to_string()))
         .await?;
-    let farming_data = project_model.get_complete_farming_data(slug).await?;
+    let farming_data = match project_model.get_complete_farming_data(slug).await? {
+        Some(d) => d,
+        None => {
+            return Ok(HttpResponse::NotFound().json(
+                ServerResponse::<UnconnectedFarmingData>::Error {
+                    code: 404,
+                    error_message: "Not found".to_string(),
+                    message: "Project not found".to_string(),
+                },
+            ))
+        }
+    };
 
     if project_data.is_empty() {
         return Ok(HttpResponse::NotFound().json(
