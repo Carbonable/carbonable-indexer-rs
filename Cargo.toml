@@ -11,15 +11,17 @@ carbonable-domain = { path = "packages/domain"}
 
 actix-web = { version = "4.3.1", features = ["rustls"] }
 apibara-sdk = { git = "https://github.com/apibara/dna", branch = "main" }
+async-recursion = "1.0.4"
 # Using a fork here
 starknet = { git = "https://github.com/MartianGreed/starknet-rs", branch = "master" }
 # starknet = { path = "../../starknet-rs" }
 bigdecimal = "0.3.0"
+crypto-bigint = { version = "0.4.9", features = ["serde", "alloc"] }
 async-trait = "0.1.66"
 futures = "0.3.26"
 futures-util = "0.3.26"
-serde = "^1.0.159"
-serde_json = { version = "1.0.94", features = ["raw_value"]} 
+serde = { version = "^1.0.159", features = ["alloc"]}
+serde_json = { version = "1.0.94", features = ["raw_value", "alloc"]} 
 thiserror = "1.0.39"
 tokio = "1.26.0"
 tonic = "0.8.3"
@@ -40,4 +42,3 @@ sea-query-postgres = { version = "0.2.0", features = ["with-json", "with-uuid", 
 sea-orm-migration = { version = "0.11.1", features = ["sqlx-postgres", "runtime-tokio-rustls"] }
 sea-query-binder = { version = "0.3.0", features = ["with-uuid", "with-json", "postgres-array", "with-bigdecimal", "with-time", "runtime-tokio-rustls", "sqlx-postgres"] }
 url = "2.3.1"
-crypto-bigint = { version = "0.5.1", features = ["serde"] }

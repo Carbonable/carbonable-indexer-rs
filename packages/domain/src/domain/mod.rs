@@ -1,3 +1,4 @@
+pub mod crypto;
 pub mod event_source;
 pub mod project;
 

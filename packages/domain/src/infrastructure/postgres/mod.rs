@@ -21,7 +21,7 @@ use starknet::{
     core::types::FieldElement,
     providers::jsonrpc::{HttpTransport, JsonRpcClient},
 };
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio_postgres::{error::SqlState, Config, NoTls};
 use tracing::error;
@@ -148,6 +148,7 @@ pub async fn find_or_create_project(
     }
 }
 
+#[async_recursion::async_recursion]
 pub async fn find_or_create_3525_project(
     db_models: Arc<PostgresModels<Erc3525>>,
     address: &str,
@@ -162,11 +163,22 @@ pub async fn find_or_create_3525_project(
         None => {
             let seeder = ProjectSeeder::<Erc3525>::new(db_models.clone());
             match seeder.seed(address.to_string()).await {
-                Ok(_p) => Ok(db_models
-                    .project
-                    .find_by_address(address)
-                    .await?
-                    .expect("erc3525 project should have been created")),
+                Ok(_p) => match db_models.project.find_by_address(address).await? {
+                    Some(p) => Ok(p),
+                    None => {
+                        error!("project not created yet");
+                        while db_models.project.find_by_address(address).await?.is_none() {
+                            tokio::time::sleep(Duration::from_secs(10)).await;
+                            seeder.seed(address.to_string()).await;
+                        }
+
+                        Ok(db_models
+                            .project
+                            .find_by_address(address)
+                            .await?
+                            .expect("erc3525 project should have been created"))
+                    }
+                },
                 Err(e) => {
                     println!("error: {:?}", e);
                     Err(PostgresError::FailedToSeedProject)

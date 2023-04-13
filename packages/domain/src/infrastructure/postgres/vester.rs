@@ -63,11 +63,11 @@ impl PostgresVester {
                 address.into(),
                 data.get_mut("vestings_total_amount")
                     .expect("should have token")
-                    .resolve("u64")
+                    .resolve("u256")
                     .into(),
                 data.get_mut("withdrawable_amount")
                     .expect("should have recipient")
-                    .resolve("u64")
+                    .resolve("u256")
                     .into(),
                 implementation_id.into(),
             ])?

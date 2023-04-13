@@ -485,6 +485,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-recursion"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e97ce7de6cf12de5d7226c73f5ba9811622f4db3a5b91b55c53e987e5f91cba"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.13",
+]
+
+[[package]]
 name = "async-std"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -649,9 +660,9 @@ checksum = "4cbbc9d0964165b47557570cce6c952866c2678457aca742aafc9fb771d30270"
 
 [[package]]
 name = "base16ct"
-version = "0.2.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
+checksum = "349a06037c7bf932dd7e7d1f653678b2038b9ad46a74102f1fc7bd7872678cce"
 
 [[package]]
 name = "base64"
@@ -809,10 +820,11 @@ name = "carbonable-domain"
 version = "0.1.0"
 dependencies = [
  "apibara-sdk",
+ "async-recursion",
  "async-trait",
  "bigdecimal",
  "clap 4.1.8",
- "crypto-bigint 0.5.1",
+ "crypto-bigint",
  "deadpool",
  "deadpool-postgres",
  "env_logger",
@@ -1130,19 +1142,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef2b4b23cddf68b89b8f8069890e8c270d54e2d5fe1b143820234805e4cb17ef"
 dependencies = [
  "generic-array",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "crypto-bigint"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c2538c4e68e52548bacb3e83ac549f903d44f011ac9d5abb5e132e67d0808f7"
-dependencies = [
  "rand_core",
  "serdect",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -3009,7 +3012,7 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7743f17af12fa0b03b803ba12cd6a8d9483a587e89c69445e3909655c0b9fabb"
 dependencies = [
- "crypto-bigint 0.4.9",
+ "crypto-bigint",
  "hmac",
  "zeroize",
 ]
@@ -3471,9 +3474,9 @@ dependencies = [
 
 [[package]]
 name = "serdect"
-version = "0.2.0"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a84f14a19e9a014bb9f4512488d9829a68e04ecabffb0f9904cd1ace94598177"
+checksum = "038fce1bf4d74b9b30ea7dcd59df75ba8ec669a5dcb3cc64fbfcef7334ced32c"
 dependencies = [
  "base16ct",
  "serde",
@@ -3792,7 +3795,7 @@ name = "starknet-crypto"
 version = "0.3.0"
 source = "git+https://github.com/xJonathanLEI/starknet-rs?rev=ca077d3104e11a59d873f79e6090f0ec8cb3fc58#ca077d3104e11a59d873f79e6090f0ec8cb3fc58"
 dependencies = [
- "crypto-bigint 0.4.9",
+ "crypto-bigint",
  "hmac",
  "num-bigint",
  "num-integer",
@@ -3810,7 +3813,7 @@ name = "starknet-crypto"
 version = "0.4.2"
 source = "git+https://github.com/MartianGreed/starknet-rs?branch=master#ee38ef4481f2f78949b9693df06e9b4d12172948"
 dependencies = [
- "crypto-bigint 0.4.9",
+ "crypto-bigint",
  "hex",
  "hmac",
  "num-bigint",
@@ -3867,7 +3870,7 @@ source = "git+https://github.com/xJonathanLEI/starknet-rs?rev=ca077d3104e11a59d8
 dependencies = [
  "ark-ff",
  "bigdecimal",
- "crypto-bigint 0.4.9",
+ "crypto-bigint",
  "getrandom",
  "hex",
  "num-bigint",
@@ -3881,7 +3884,7 @@ source = "git+https://github.com/MartianGreed/starknet-rs?branch=master#ee38ef44
 dependencies = [
  "ark-ff",
  "bigdecimal",
- "crypto-bigint 0.4.9",
+ "crypto-bigint",
  "getrandom",
  "hex",
  "num-bigint",

@@ -78,23 +78,26 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(ProjectIden::Slug).string().not_null())
                     .col(ColumnDef::new(ProjectIden::Name).string().not_null())
-                    .col(ColumnDef::new(ProjectIden::Slot).big_integer().null())
+                    .col(ColumnDef::new(ProjectIden::Slot).binary().not_null())
                     .col(
                         ColumnDef::new(ProjectIden::Symbol)
                             .string()
                             .string_len(20)
                             .null(),
                     )
-                    .col(ColumnDef::new(ProjectIden::TotalSupply).big_integer())
+                    .col(ColumnDef::new(ProjectIden::TotalSupply).binary())
                     .col(
                         ColumnDef::new(ProjectIden::Owner)
                             .string()
                             .string_len(66)
                             .not_null(),
                     )
-                    .col(ColumnDef::new(ProjectIden::TonEquivalent).big_integer())
+                    .col(ColumnDef::new(ProjectIden::TonEquivalent).binary())
                     .col(ColumnDef::new(ProjectIden::Times).array(ColumnType::DateTime))
-                    .col(ColumnDef::new(ProjectIden::Absorptions).array(ColumnType::BigUnsigned))
+                    .col(
+                        ColumnDef::new(ProjectIden::Absorptions)
+                            .array(ColumnType::Binary(BlobSize::Medium)),
+                    )
                     .col(ColumnDef::new(ProjectIden::Setup).boolean().default(false))
                     .col(
                         ColumnDef::new(ProjectIden::ErcImplementation)
@@ -116,18 +119,12 @@ impl MigrationTrait for Migration {
                     )
                     .index(
                         Index::create()
-                            .name("project_address_slot_idx")
+                            .name("project_address_slug_slot_idx")
                             .table(ProjectIden::Table)
                             .col(ProjectIden::Address)
-                            .col(ProjectIden::Slot)
-                            .unique(),
-                    )
-                    .index(
-                        Index::create()
-                            .name("project_slug_slot_idx")
-                            .table(ProjectIden::Table)
                             .col(ProjectIden::Slug)
                             .col(ProjectIden::Slot)
+                            .col(ProjectIden::ErcImplementation)
                             .unique(),
                     )
                     .to_owned(),
@@ -158,11 +155,7 @@ impl MigrationTrait for Migration {
                             .string_len(20)
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(PaymentIden::Decimals)
-                            .big_unsigned()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(PaymentIden::Decimals).binary().not_null())
                     .col(ColumnDef::new(PaymentIden::ImplementationId).uuid().null())
                     .foreign_key(
                         ForeignKey::create()
@@ -193,10 +186,10 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .unique_key(),
                     )
-                    .col(ColumnDef::new(MinterIden::MaxSupply).big_integer().null())
+                    .col(ColumnDef::new(MinterIden::MaxSupply).binary().null())
                     .col(
                         ColumnDef::new(MinterIden::ReservedSupply)
-                            .big_integer()
+                            .binary()
                             .not_null(),
                     )
                     .col(
@@ -211,21 +204,13 @@ impl MigrationTrait for Migration {
                             .default(false)
                             .not_null(),
                     )
-                    .col(ColumnDef::new(MinterIden::MaxBuyPerTx).big_integer().null())
-                    .col(
-                        ColumnDef::new(MinterIden::MaxValuePerTx)
-                            .big_integer()
-                            .null(),
-                    )
-                    .col(
-                        ColumnDef::new(MinterIden::MinValuePerTx)
-                            .big_integer()
-                            .null(),
-                    )
-                    .col(ColumnDef::new(MinterIden::UnitPrice).double().not_null())
+                    .col(ColumnDef::new(MinterIden::MaxBuyPerTx).binary().null())
+                    .col(ColumnDef::new(MinterIden::MaxValuePerTx).binary().null())
+                    .col(ColumnDef::new(MinterIden::MinValuePerTx).binary().null())
+                    .col(ColumnDef::new(MinterIden::UnitPrice).binary().not_null())
                     .col(
                         ColumnDef::new(MinterIden::WhitelistMerkleRoot)
-                            .text()
+                            .binary()
                             .null(),
                     )
                     .col(
@@ -234,7 +219,7 @@ impl MigrationTrait for Migration {
                             .default(false)
                             .not_null(),
                     )
-                    .col(ColumnDef::new(MinterIden::TotalValue).double().null())
+                    .col(ColumnDef::new(MinterIden::TotalValue).binary().null())
                     .col(
                         ColumnDef::new(MinterIden::ErcImplementation)
                             .enumeration(
@@ -292,14 +277,10 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .unique_key(),
                     )
-                    .col(
-                        ColumnDef::new(VesterIden::TotalAmount)
-                            .big_unsigned()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(VesterIden::TotalAmount).binary().not_null())
                     .col(
                         ColumnDef::new(VesterIden::WithdrawableAmount)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(ColumnDef::new(VesterIden::ImplementationId).uuid().null())
@@ -380,12 +361,12 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(YielderIden::TotalDeposited)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(YielderIden::TotalAbsorption)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
@@ -443,22 +424,22 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(OffseterIden::TotalDeposited)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(OffseterIden::TotalClaimed)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(OffseterIden::TotalClaimable)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(OffseterIden::MinClaimable)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(ColumnDef::new(OffseterIden::ProjectId).uuid().null())
@@ -500,47 +481,47 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(SnapshotIden::PreviousProjectAbsorption)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(SnapshotIden::PreviousYielderAbsorption)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(SnapshotIden::PreviousOffseterAbsorption)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(SnapshotIden::CurrentProjectAbsorption)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(SnapshotIden::CurrentYielderAbsorption)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(SnapshotIden::CurrentOffseterAbsorption)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(SnapshotIden::ProjectAbsorption)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(SnapshotIden::YielderAbsorption)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(SnapshotIden::OffseterAbsorption)
-                            .big_unsigned()
+                            .binary()
                             .not_null(),
                     )
                     .col(ColumnDef::new(SnapshotIden::Time).date_time().not_null())
@@ -575,7 +556,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(VestingIden::Amount).double().not_null())
+                    .col(ColumnDef::new(VestingIden::Amount).binary().not_null())
                     .col(
                         ColumnDef::new(VestingIden::Time)
                             .date_time()
@@ -621,17 +602,9 @@ impl MigrationTrait for Migration {
                             .string_len(66)
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(TransferIden::TokenId)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(TransferIden::TokenId).binary().not_null())
                     .col(ColumnDef::new(TransferIden::Time).date_time().not_null())
-                    .col(
-                        ColumnDef::new(TransferIden::BlockId)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(TransferIden::BlockId).binary().not_null())
                     .col(ColumnDef::new(TransferIden::ProjectId).uuid().null())
                     .foreign_key(
                         ForeignKey::create()
@@ -667,17 +640,9 @@ impl MigrationTrait for Migration {
                             .string_len(66)
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(AirdropIden::Quantity)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(AirdropIden::Quantity).binary().not_null())
                     .col(ColumnDef::new(AirdropIden::Time).date_time().not_null())
-                    .col(
-                        ColumnDef::new(AirdropIden::BlockId)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(AirdropIden::BlockId).binary().not_null())
                     .col(ColumnDef::new(AirdropIden::MinterId).uuid().null())
                     .foreign_key(
                         ForeignKey::create()
@@ -713,9 +678,9 @@ impl MigrationTrait for Migration {
                             .string_len(66)
                             .not_null(),
                     )
-                    .col(ColumnDef::new(BuyIden::Quantity).big_integer().not_null())
+                    .col(ColumnDef::new(BuyIden::Quantity).binary().not_null())
                     .col(ColumnDef::new(BuyIden::Time).date_time().not_null())
-                    .col(ColumnDef::new(BuyIden::BlockId).big_integer().not_null())
+                    .col(ColumnDef::new(BuyIden::BlockId).binary().not_null())
                     .col(ColumnDef::new(BuyIden::MinterId).uuid().null())
                     .foreign_key(
                         ForeignKey::create()
@@ -759,7 +724,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(TransferSingleIden::TokenId)
-                            .big_integer()
+                            .binary()
                             .not_null(),
                     )
                     .col(
@@ -769,7 +734,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(TransferSingleIden::BlockId)
-                            .big_integer()
+                            .binary()
                             .not_null(),
                     )
                     .col(ColumnDef::new(TransferSingleIden::BadgeId).uuid().null())

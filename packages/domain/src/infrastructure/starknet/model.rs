@@ -1,4 +1,5 @@
 use bigdecimal::{BigDecimal, ToPrimitive};
+use crypto_bigint::Encoding;
 use std::{collections::HashMap, sync::Arc};
 
 use starknet::{
@@ -18,6 +19,7 @@ use thiserror::Error;
 use time::OffsetDateTime;
 use tokio::task::JoinError;
 
+use crate::domain::crypto::U256;
 use crate::infrastructure::flatten;
 
 use super::SequencerError;
@@ -49,6 +51,16 @@ pub enum ModelError {
 #[async_trait::async_trait]
 pub trait StarknetModel<T> {
     async fn load(&self) -> Result<T, ModelError>;
+}
+
+/// Transforms FieldElelent to U256
+pub fn felt_to_u256(element: FieldElement) -> U256 {
+    U256(crypto_bigint::U256::from_be_bytes(element.to_bytes_be()))
+}
+
+/// Transforms U256 to FieldElement
+pub fn u256_to_felt(u: &U256) -> FieldElement {
+    FieldElement::from_bytes_be(&u.0.to_be_bytes()).unwrap()
 }
 
 pub fn get_call_function(
@@ -132,7 +144,7 @@ pub async fn parallelize_blockchain_rpc_calls(
 pub(crate) async fn load_blockchain_slot_data(
     provider: Arc<JsonRpcClient<HttpTransport>>,
     address: FieldElement,
-    slot: u64,
+    slot: U256,
     selectors: &'static [&str],
 ) -> Result<HashMap<String, StarknetValue>, ModelError> {
     let mut handles = vec![];
@@ -145,7 +157,7 @@ pub(crate) async fn load_blockchain_slot_data(
                     get_call_function(
                         &address,
                         contract_entrypoint,
-                        vec![slot.into(), FieldElement::ZERO],
+                        vec![u256_to_felt(&slot), FieldElement::ZERO],
                     ),
                     &BlockId::Tag(BlockTag::Latest),
                 )
@@ -271,17 +283,17 @@ impl StarknetValueResolver for StarknetValue {
                 resolved
             }
             "u256" => {
-                let int = u64::try_from(self.inner.first().unwrap().to_owned()).unwrap();
-                let resolved = StarknetResolvedValue::Unsigned(int);
+                let int: U256 = felt_to_u256(*self.inner.first().unwrap());
+                let resolved = StarknetResolvedValue::U256(int);
                 self.resolved = Some(resolved.clone());
                 resolved
             }
-            "u64_array" => {
+            "u256_array" => {
                 let integers = self
                     .inner
                     .iter()
                     .skip(1)
-                    .map(|fe| u64::try_from(fe.to_owned()).unwrap())
+                    .map(|fe| felt_to_u256(fe.to_owned()))
                     .collect();
                 let resolved = StarknetResolvedValue::IntArray(integers);
                 self.resolved = Some(resolved.clone());
@@ -297,6 +309,17 @@ impl StarknetValueResolver for StarknetValue {
                 let int = u64::try_from(self.inner.pop().unwrap()).unwrap();
                 let datetime = OffsetDateTime::from_unix_timestamp(int as i64).unwrap();
                 let resolved = StarknetResolvedValue::Date(datetime);
+                self.resolved = Some(resolved.clone());
+                resolved
+            }
+            "datetime_array" => {
+                let integers = self
+                    .inner
+                    .iter()
+                    .skip(1)
+                    .map(|fe| u64::try_from(fe.to_owned()).unwrap())
+                    .collect();
+                let resolved = StarknetResolvedValue::DateArray(integers);
                 self.resolved = Some(resolved.clone());
                 resolved
             }
@@ -316,10 +339,11 @@ pub enum StarknetResolvedValue {
     Float,
     String(String),
     Bool(bool),
-    IntArray(Vec<u64>),
-    DateArray,
+    IntArray(Vec<U256>),
+    DateArray(Vec<u64>),
     Date(OffsetDateTime),
     BigInt(BigDecimal),
+    U256(U256),
 }
 
 impl From<StarknetResolvedValue> for String {
@@ -362,6 +386,23 @@ impl From<StarknetResolvedValue> for u64 {
     }
 }
 
+impl From<StarknetResolvedValue> for U256 {
+    fn from(value: StarknetResolvedValue) -> Self {
+        match value {
+            StarknetResolvedValue::U256(i) => i,
+            _ => panic!("cannot convert StarknetResolvedValue to U256"),
+        }
+    }
+}
+impl From<StarknetResolvedValue> for crypto_bigint::U256 {
+    fn from(value: StarknetResolvedValue) -> Self {
+        match value {
+            StarknetResolvedValue::U256(i) => crypto_bigint::U256::from_words(i.0.to_words()),
+            _ => panic!("cannot convert StarknetResolvedValue to U256"),
+        }
+    }
+}
+
 impl From<StarknetResolvedValue> for sea_query::Value {
     fn from(value: StarknetResolvedValue) -> Self {
         match value {
@@ -370,15 +411,24 @@ impl From<StarknetResolvedValue> for sea_query::Value {
             StarknetResolvedValue::Unsigned(i) => sea_query::Value::BigUnsigned(Some(i)),
             StarknetResolvedValue::Bool(b) => sea_query::Value::Bool(Some(b)),
             StarknetResolvedValue::IntArray(ia) => sea_query::Value::Array(
-                sea_query::ArrayType::BigUnsigned,
+                sea_query::ArrayType::Bytes,
                 Some(Box::new(
                     ia.iter()
-                        .map(|u| sea_query::Value::BigUnsigned(Some(u.to_owned())))
+                        .map(|u| {
+                            sea_query::Value::Bytes(Some(Box::new(u.0.to_be_bytes().to_vec())))
+                        })
                         .collect(),
                 )),
             ),
             StarknetResolvedValue::Float => todo!(),
-            StarknetResolvedValue::DateArray => todo!(),
+            StarknetResolvedValue::DateArray(ia) => sea_query::Value::Array(
+                sea_query::ArrayType::BigUnsigned,
+                Some(Box::new(
+                    ia.iter()
+                        .map(|u| sea_query::Value::BigUnsigned(Some(*u)))
+                        .collect(),
+                )),
+            ),
             StarknetResolvedValue::Date(d) => {
                 sea_query::Value::TimeDateTimeWithTimeZone(Some(Box::new(d)))
             }
@@ -386,6 +436,9 @@ impl From<StarknetResolvedValue> for sea_query::Value {
                 sea_query::Value::BigDecimal(Some(Box::new(big_decimal)))
             }
             StarknetResolvedValue::Int(i) => sea_query::Value::BigInt(Some(i)),
+            StarknetResolvedValue::U256(u) => {
+                sea_query::Value::Bytes(Some(Box::new(u.0.to_be_bytes().to_vec())))
+            }
         }
     }
 }
