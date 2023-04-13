@@ -13,6 +13,7 @@ use sea_query_postgres::PostgresBinder;
 use tracing::error;
 use uuid::Uuid;
 
+use crate::domain::crypto::U256;
 use crate::infrastructure::starknet::model::StarknetValue;
 
 use super::{
@@ -180,10 +181,6 @@ impl PostgresProject {
             None => "tokenSupplyInSlot",
             Some(_) => "totalSupply",
         };
-        let slot: u64 = match data.get_mut("slot") {
-            Some(s) => s.resolve("u64").into(),
-            None => 0,
-        };
         let (sql, values) = Query::insert()
             .into_table(ProjectIden::Table)
             .columns([
@@ -217,14 +214,21 @@ impl PostgresProject {
                     .expect("name has to be provided")
                     .resolve("string")
                     .into(),
-                slot.into(),
+                data.get_mut("slot")
+                    .unwrap_or(&mut StarknetValue::from_resolved_value(
+                        crate::infrastructure::starknet::model::StarknetResolvedValue::U256(U256(
+                            crypto_bigint::U256::from_u8(0),
+                        )),
+                    ))
+                    .resolve("u256")
+                    .into(),
                 data.get_mut("symbol")
                     .expect("should have symbol")
                     .resolve("string")
                     .into(),
                 data.get_mut(total_supply_key)
                     .expect("total supply has to be provided")
-                    .resolve("u64")
+                    .resolve("u256")
                     .into(),
                 data.get_mut("owner")
                     .expect("owner has to be provided")
@@ -232,35 +236,35 @@ impl PostgresProject {
                     .into(),
                 data.get_mut("getTonEquivalent")
                     .expect("ton equivalent has to be provided")
-                    .resolve("u64")
+                    .resolve("u256")
                     .into(),
                 data.get_mut("getTimes")
                     .expect("getTimes has to be provided")
-                    .resolve("u64_array")
+                    .resolve("datetime_array")
                     .into(),
                 data.get_mut("getAbsorptions")
                     .expect("getAbsorptions has to be provided")
-                    .resolve("u64_array")
+                    .resolve("u256_array")
                     .into(),
                 data.get_mut("isSetup")
                     .expect("isSetup has to be provided")
                     .resolve("bool")
                     .into(),
-                Expr::val::<&str>(erc_implementation.into()).as_enum(ErcImplementation::Enum),
+                sea_query::Value::String(Some(Box::new(erc_implementation.to_string()))).into(),
                 implementation_id.into(),
                 uri_id.into(),
             ])?
             .build_postgres(PostgresQueryBuilder);
-        let _result = match client.execute(sql.as_str(), &values.as_params()).await {
-            Ok(res) => res,
+
+        match client.execute(sql.as_str(), &values.as_params()).await {
+            Ok(res) => Ok(()),
             Err(e) => {
                 error!("while create project {:#?}", e);
                 if e.code().eq(&Some(&SqlState::UNIQUE_VIOLATION)) {
                     return Ok(());
                 }
-                return Err(e.into());
+                Err(e.into())
             }
-        };
-        Ok(())
+        }
     }
 }

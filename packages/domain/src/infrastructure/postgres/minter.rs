@@ -1,13 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
-use bigdecimal::BigDecimal;
+use crypto_bigint::CheckedMul;
 use deadpool_postgres::Pool;
 use sea_query::{Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use uuid::Uuid;
 
 use crate::{
-    domain::{Contract, Erc3525, Erc721},
+    domain::{crypto::U256, Contract, Erc3525, Erc721},
     infrastructure::starknet::model::{StarknetValue, StarknetValueResolver},
 };
 
@@ -69,11 +69,11 @@ impl PostgresMinter<Erc721> {
                 address.into(),
                 data.get_mut("getMaxSupplyForMint")
                     .expect("should have getMaxSupplyForMint")
-                    .resolve("u64")
+                    .resolve("u256")
                     .into(),
                 data.get_mut("getReservedSupplyForMint")
                     .expect("should have getReservedSupplyForMint")
-                    .resolve("u64")
+                    .resolve("u256")
                     .into(),
                 data.get_mut("isPreSaleOpen")
                     .expect("should have isPreSaleOpen")
@@ -85,11 +85,11 @@ impl PostgresMinter<Erc721> {
                     .into(),
                 data.get_mut("getMaxBuyPerTx")
                     .expect("should have getMaxBuyPerTx")
-                    .resolve("u64")
+                    .resolve("u256")
                     .into(),
                 data.get_mut("getUnitPrice")
                     .expect("should have getUnitPrice")
-                    .resolve("bigint")
+                    .resolve("u256")
                     .into(),
                 data.get_mut("getWhitelistMerkleRoot")
                     .expect("should have getWhitelistMerkleRoot")
@@ -101,7 +101,7 @@ impl PostgresMinter<Erc721> {
                     .into(),
                 data.get_mut("getTotalValue")
                     .expect("should have getTotalValue")
-                    .resolve("bigint")
+                    .resolve("u256")
                     .into(),
                 Expr::val::<&str>(ErcImplementation::Erc721.into())
                     .as_enum(ErcImplementation::Enum),
@@ -126,17 +126,17 @@ impl PostgresMinter<Erc3525> {
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
         let id = uuid::Uuid::new_v4();
-        let unit_price: BigDecimal = data
+        let unit_price: crypto_bigint::U256 = data
             .get_mut("getUnitPrice")
             .expect("should have getUnitPrice")
-            .resolve("bigint")
+            .resolve("u256")
             .into();
-        let max_value: BigDecimal = data
+        let max_value: crypto_bigint::U256 = data
             .get_mut("getMaxValue")
             .expect("should have getMaxValue")
-            .resolve("bigint")
+            .resolve("u256")
             .into();
-        let total_value = &unit_price * max_value;
+        let total_value = unit_price.checked_mul(&max_value).unwrap();
         let (sql, values) = Query::insert()
             .into_table(MinterIden::Table)
             .columns([
@@ -162,7 +162,7 @@ impl PostgresMinter<Erc3525> {
                 address.into(),
                 data.get_mut("getReservedValue")
                     .expect("should have getReservedValue")
-                    .resolve("u64")
+                    .resolve("u256")
                     .into(),
                 data.get_mut("isPreSaleOpen")
                     .expect("should have isPreSaleOpen")
@@ -174,17 +174,17 @@ impl PostgresMinter<Erc3525> {
                     .into(),
                 data.get_mut("getMaxValuePerTx")
                     .expect("should have getMaxBuyPerTx")
-                    .resolve("u64")
+                    .resolve("u256")
                     .into(),
                 data.get_mut("getMinValuePerTx")
                     .expect("should have getMaxBuyPerTx")
-                    .resolve("u64")
+                    .resolve("u256")
                     .into(),
-                unit_price.into(),
-                total_value.into(),
+                U256::from(unit_price).into(),
+                U256::from(total_value).into(),
                 data.get_mut("getWhitelistMerkleRoot")
                     .expect("should have getWhitelistMerkleRoot")
-                    .resolve("string")
+                    .resolve("u256")
                     .into(),
                 data.get_mut("isSoldOut")
                     .expect("should have isSoldOut")

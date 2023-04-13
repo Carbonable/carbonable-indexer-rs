@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use uuid::Uuid;
 
+use crate::domain::crypto::U256;
 use crate::infrastructure::postgres::entity::ErcImplementation;
 
 #[derive(Debug)]
@@ -9,13 +10,13 @@ pub struct ProjectWithMinterAndPaymentViewModel {
     pub address: String,
     pub name: String,
     pub slug: String,
-    pub slot: Option<i64>,
+    pub slot: Option<U256>,
     pub erc_implementation: ErcImplementation,
     pub minter_id: Uuid,
-    pub unit_price: f64,
+    pub unit_price: U256,
     pub minter_address: String,
     pub payment_id: Uuid,
-    pub payment_decimals: i64,
+    pub payment_decimals: U256,
 }
 
 impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
@@ -37,22 +38,22 @@ impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct Token {
-    pub token_id: u64,
+    pub token_id: U256,
     pub image: String,
     pub name: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize)]
 pub struct Erc3525Token {
-    pub token_id: u64,
-    pub value: u64,
+    pub token_id: U256,
+    pub value: U256,
     pub name: String,
     pub image: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum ProjectWithTokens {
     Erc721 {
@@ -62,7 +63,7 @@ pub enum ProjectWithTokens {
         minter_address: String,
         tokens: Vec<Token>,
         #[serde(skip_serializing)]
-        total_amount: f64,
+        total_amount: U256,
     },
     Erc3525 {
         id: Uuid,
@@ -71,12 +72,12 @@ pub enum ProjectWithTokens {
         minter_address: String,
         tokens: Vec<Erc3525Token>,
         #[serde(skip_serializing)]
-        total_amount: f64,
+        total_amount: U256,
     },
 }
 
 impl ProjectWithTokens {
-    pub fn get_total_amount(&self) -> f64 {
+    pub fn get_total_amount(&self) -> U256 {
         match self {
             ProjectWithTokens::Erc721 { total_amount, .. } => *total_amount,
             ProjectWithTokens::Erc3525 { total_amount, .. } => *total_amount,

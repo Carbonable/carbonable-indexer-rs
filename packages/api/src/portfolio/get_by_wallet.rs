@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::ops::Div;
 
 use actix_web::{web, HttpResponse, Responder};
 use carbonable_domain::{
-    domain::project::ProjectError,
+    domain::{crypto::U256, project::ProjectError},
     infrastructure::{
         flatten,
         postgres::{entity::ErcImplementation, project::PostgresProject},
@@ -27,8 +26,8 @@ async fn aggregate_721_tokens(
     }
     let total_amount = total_amount(
         project.unit_price,
-        project.payment_decimals as f64,
-        tokens.len() as f64,
+        project.payment_decimals,
+        U256::from(tokens.len()),
     );
 
     let project = ProjectWithTokens::Erc721 {
@@ -46,12 +45,7 @@ async fn aggregate_3525_tokens(
     project: ProjectWithMinterAndPaymentViewModel,
     wallet: String,
 ) -> Result<Option<ProjectWithTokens>, ProjectError> {
-    let slot = u64::from_ne_bytes(
-        project
-            .slot
-            .expect("erc3525 should have slot")
-            .to_ne_bytes(),
-    );
+    let slot = project.slot.expect("erc3525 should have slot");
 
     let tokens = load_erc_3525_portfolio(&project, &project.address, &wallet, &slot).await?;
     if tokens.is_empty() {
@@ -61,8 +55,8 @@ async fn aggregate_3525_tokens(
     let value = tokens
         .iter()
         .flatten()
-        .fold(0.0, |acc, e| acc + e.value as f64);
-    let total_amount = total_amount(project.unit_price, project.payment_decimals as f64, value);
+        .fold(U256::zero(), |acc, e| acc + e.value);
+    let total_amount = total_amount(project.unit_price, project.payment_decimals, value);
 
     let project = ProjectWithTokens::Erc3525 {
         id: project.id,
@@ -76,9 +70,8 @@ async fn aggregate_3525_tokens(
     Ok(Some(project))
 }
 
-fn total_amount(unit_price: f64, payment_decimals: f64, amount: f64) -> f64 {
+fn total_amount(unit_price: U256, payment_decimals: U256, amount: U256) -> U256 {
     // TODO: replace f64 with bigdecimal
-    let unit_price = unit_price.div(10.0).powf(payment_decimals);
     unit_price * amount
 }
 
@@ -111,12 +104,12 @@ async fn aggregate_tokens_with_project(
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 pub struct Global {
-    total: f64,
+    total: U256,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 pub struct GetByWalletResponse {
     global: Global,
     projects: Vec<ProjectWithTokens>,
@@ -141,7 +134,7 @@ pub async fn get_by_wallet(
 
     let total = filtered_projects
         .iter()
-        .fold(0.0, |acc, e| acc + e.get_total_amount());
+        .fold(U256::zero(), |acc, e| acc + e.get_total_amount());
 
     Ok(HttpResponse::Ok().json(ServerResponse::Data {
         data: GetByWalletResponse {

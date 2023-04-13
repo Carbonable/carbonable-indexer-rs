@@ -60,7 +60,7 @@ impl PostgresPayment {
         let decimals = data
             .get_mut("decimals")
             .expect("should have name")
-            .resolve("u64");
+            .resolve("u256");
         let (sql, values) = Query::insert()
             .into_table(PaymentIden::Table)
             .columns([

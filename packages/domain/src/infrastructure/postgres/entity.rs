@@ -1,8 +1,12 @@
+use std::fmt::Display;
+
 use bigdecimal::BigDecimal;
 use postgres_types::{FromSql, ToSql};
 use sea_query::{enum_def, Iden};
 use time::PrimitiveDateTime;
 use uuid::Uuid;
+
+use crate::domain::crypto::U256;
 
 #[derive(Debug, ToSql, Iden)]
 pub enum ErcImplementation {
@@ -12,6 +16,15 @@ pub enum ErcImplementation {
     Erc721,
     #[iden = "erc_3525"]
     Erc3525,
+}
+impl Display for ErcImplementation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErcImplementation::Erc721 => write!(f, "erc_721"),
+            ErcImplementation::Erc3525 => write!(f, "erc_3525"),
+            ErcImplementation::Enum => panic!("Not a valid erc implementation"),
+        }
+    }
 }
 
 impl<'a> FromSql<'a> for ErcImplementation {
@@ -50,13 +63,13 @@ pub struct Project {
     pub address: String,
     pub slug: String,
     pub name: String,
-    pub slot: Option<i64>,
+    pub slot: Option<U256>,
     pub symbol: Option<String>,
-    pub total_supply: i64,
+    pub total_supply: U256,
     pub owner: String,
-    pub ton_equivalent: i64,
+    pub ton_equivalent: U256,
     pub times: Vec<PrimitiveDateTime>,
-    pub absorptions: Vec<i64>,
+    pub absorptions: Vec<U256>,
     pub setup: bool,
     pub erc_implementation: ErcImplementation,
     pub implementation_id: Option<Uuid>,
@@ -125,7 +138,7 @@ pub struct Payment {
     pub address: String,
     pub name: String,
     pub symbol: String,
-    pub decimals: i64,
+    pub decimals: U256,
     pub implementation_id: Option<Uuid>,
 }
 
@@ -146,18 +159,18 @@ impl From<tokio_postgres::Row> for Payment {
 pub struct Minter {
     pub id: Uuid,
     pub address: String,
-    pub max_supply: Option<u64>,
+    pub max_supply: Option<U256>,
     // Can be reserved value in case of an erc3525
-    pub reserved_supply: u64,
+    pub reserved_supply: U256,
     pub pre_sale_open: bool,
     pub public_sale_open: bool,
-    pub max_buy_per_tx: Option<u64>,
-    pub max_value_per_tx: Option<u64>,
-    pub min_value_per_tx: Option<u64>,
+    pub max_buy_per_tx: Option<U256>,
+    pub max_value_per_tx: Option<U256>,
+    pub min_value_per_tx: Option<U256>,
     pub unit_price: BigDecimal,
     pub whitelist_merkle_root: Option<String>,
     pub sold_out: bool,
-    pub total_value: Option<BigDecimal>,
+    pub total_value: Option<U256>,
     pub whitelist: Option<serde_json::Value>,
     pub erc_implementation: ErcImplementation,
     pub project_id: Option<Uuid>,
@@ -169,10 +182,10 @@ pub struct Minter {
 pub struct Offseter {
     pub id: Uuid,
     pub address: String,
-    pub total_deposited: u64,
-    pub total_claimed: u64,
-    pub total_claimable: u64,
-    pub min_claimable: u64,
+    pub total_deposited: U256,
+    pub total_claimed: U256,
+    pub total_claimable: U256,
+    pub min_claimable: U256,
     pub project_id: Option<Uuid>,
     pub implementation_id: Option<Uuid>,
 }
@@ -181,15 +194,15 @@ pub struct Offseter {
 pub struct Snapshot {
     pub id: Uuid,
     pub previous_time: PrimitiveDateTime,
-    pub previous_project_absorption: i64,
-    pub previous_offseter_absorption: i64,
-    pub previous_yielder_absorption: i64,
-    pub current_project_absorption: i64,
-    pub current_offseter_absorption: i64,
-    pub current_yielder_absorption: i64,
-    pub project_absorption: i64,
-    pub offseter_absorption: i64,
-    pub yielder_absorption: i64,
+    pub previous_project_absorption: U256,
+    pub previous_offseter_absorption: U256,
+    pub previous_yielder_absorption: U256,
+    pub current_project_absorption: U256,
+    pub current_offseter_absorption: U256,
+    pub current_yielder_absorption: U256,
+    pub project_absorption: U256,
+    pub offseter_absorption: U256,
+    pub yielder_absorption: U256,
     pub time: PrimitiveDateTime,
     pub yielder_id: Option<Uuid>,
 }
@@ -217,8 +230,8 @@ impl From<tokio_postgres::Row> for Snapshot {
 pub struct Yielder {
     pub id: Uuid,
     pub address: String,
-    pub total_deposited: u64,
-    pub total_absorption: u64,
+    pub total_deposited: U256,
+    pub total_absorption: U256,
     pub snapshot_time: PrimitiveDateTime,
     pub project_id: Option<Uuid>,
     pub vester_id: Option<Uuid>,
@@ -228,7 +241,7 @@ pub struct Yielder {
 #[enum_def]
 pub struct Vesting {
     pub id: Uuid,
-    pub amount: f64,
+    pub amount: U256,
     pub time: PrimitiveDateTime,
     pub yielder_id: Option<Uuid>,
 }
@@ -248,8 +261,8 @@ impl From<tokio_postgres::Row> for Vesting {
 pub struct Vester {
     pub id: Uuid,
     pub address: String,
-    pub total_amount: i64,
-    pub withdrawable_amount: i64,
+    pub total_amount: U256,
+    pub withdrawable_amount: U256,
     pub implementation_id: Option<Uuid>,
 }
 impl From<tokio_postgres::Row> for Vester {
@@ -270,9 +283,9 @@ pub struct Transfer {
     pub hash: String,
     pub from: String,
     pub to: String,
-    pub token_id: u64,
+    pub token_id: U256,
     pub time: PrimitiveDateTime,
-    pub block_id: u64,
+    pub block_id: U256,
     pub project_id: Option<Uuid>,
 }
 
@@ -281,9 +294,9 @@ pub struct Airdrop {
     pub id: Uuid,
     pub hash: String,
     pub address: String,
-    pub quantity: u64,
+    pub quantity: U256,
     pub time: PrimitiveDateTime,
-    pub block_id: u64,
+    pub block_id: U256,
     pub minter_id: Option<Uuid>,
 }
 
@@ -292,9 +305,9 @@ pub struct Buy {
     pub id: Uuid,
     pub hash: String,
     pub address: String,
-    pub quantity: u64,
+    pub quantity: U256,
     pub time: PrimitiveDateTime,
-    pub block_id: u64,
+    pub block_id: U256,
     pub minter_id: Option<Uuid>,
 }
 
@@ -304,9 +317,9 @@ pub struct TransferSingle {
     pub hash: String,
     pub from: String,
     pub to: String,
-    pub token_id: u64,
+    pub token_id: U256,
     pub time: PrimitiveDateTime,
-    pub block_id: u64,
+    pub block_id: U256,
     pub badge_id: Option<Uuid>,
 }
 

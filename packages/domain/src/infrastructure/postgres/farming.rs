@@ -17,6 +17,7 @@ use super::{
     },
     PostgresError,
 };
+use crate::domain::crypto::U256;
 
 #[derive(Debug)]
 pub struct PostgresFarming {
@@ -139,6 +140,7 @@ impl PostgresFarming {
                 (ProjectIden::Table, ProjectIden::Absorptions),
                 (ProjectIden::Table, ProjectIden::TonEquivalent),
             ])
+            .column((PaymentIden::Table, PaymentIden::Decimals))
             .column((OffseterIden::Table, OffseterIden::Address))
             .columns([
                 (YielderIden::Table, YielderIden::Id),
@@ -168,6 +170,11 @@ impl PostgresFarming {
                 MinterIden::Table,
                 Expr::col((MinterIden::Table, MinterIden::ProjectId))
                     .equals((ProjectIden::Table, ProjectIden::Id)),
+            )
+            .left_join(
+                PaymentIden::Table,
+                Expr::col((PaymentIden::Table, PaymentIden::Id))
+                    .equals((MinterIden::Table, MinterIden::PaymentId)),
             )
             .and_where(Expr::col((ProjectIden::Table, ProjectIden::Slug)).eq(slug))
             .and_where(
@@ -235,17 +242,22 @@ impl PostgresFarming {
         }
     }
 
-    pub async fn get_total_value(&self, project_id: Uuid) -> Result<f64, PostgresError> {
+    pub async fn get_total_value(&self, project_id: Uuid) -> Result<U256, PostgresError> {
         let client = self.db_client_pool.clone().get().await?;
 
         let (sql, values) = Query::select()
             .from(MinterIden::Table)
-            .expr(Expr::col((MinterIden::Table, MinterIden::TotalValue)).sum())
+            .column((MinterIden::Table, MinterIden::TotalValue))
             .and_where(Expr::col((MinterIden::Table, MinterIden::ProjectId)).eq(project_id))
             .build_postgres(PostgresQueryBuilder);
 
-        match client.query_one(sql.as_str(), &values.as_params()).await {
-            Ok(res) => Ok(res.get::<usize, f64>(0)),
+        match client.query(sql.as_str(), &values.as_params()).await {
+            Ok(res) => Ok(res
+                .iter()
+                .map(|r| r.get(0))
+                .fold(U256::zero(), |acc, x: Option<U256>| {
+                    acc + x.unwrap_or(U256::zero())
+                })),
             Err(e) => {
                 error!("{:#?}", e);
                 Err(PostgresError::TokioPostgresError(e))
