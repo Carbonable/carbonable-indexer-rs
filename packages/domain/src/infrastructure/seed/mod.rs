@@ -49,14 +49,23 @@ pub struct DataSeeder<T: SeederManager + Send + Sync> {
     inner: Arc<T>,
 }
 
+/// Read data json file with simple key-value format
+pub fn read_data_content<P: AsRef<std::path::Path>>(
+    file_path: P,
+) -> Result<Vec<HashMap<String, String>>, Box<dyn std::error::Error>> {
+    let file = std::fs::File::open(file_path)?;
+    let reader = std::io::BufReader::new(file);
+
+    let content = serde_json::from_reader(reader)?;
+    Ok(content)
+}
+
 impl DataSeeder<SqlSeederManager> {
     pub async fn feed_from_data<P: AsRef<std::path::Path>>(
         file_path: P,
         seeders: Vec<Arc<dyn Seeder + Send + Sync>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let file = std::fs::File::open(file_path)?;
-        let reader = std::io::BufReader::new(file);
-        let content = serde_json::from_reader(reader)?;
+        let content = read_data_content(file_path)?;
 
         Ok(DataSeeder {
             data: content,

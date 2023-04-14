@@ -286,7 +286,7 @@ checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
 [[package]]
 name = "apibara-core"
 version = "0.1.0"
-source = "git+https://github.com/apibara/dna?branch=main#5e284618b2a1eea49aa04cb04d452ec48b3ffb99"
+source = "git+https://github.com/MartianGreed/apibara?branch=main#6f32ecfbb50f7a90f1b421a37bd5307874308de8"
 dependencies = [
  "anyhow",
  "hex",
@@ -306,7 +306,7 @@ dependencies = [
 [[package]]
 name = "apibara-sdk"
 version = "0.1.0"
-source = "git+https://github.com/apibara/dna?branch=main#5e284618b2a1eea49aa04cb04d452ec48b3ffb99"
+source = "git+https://github.com/MartianGreed/apibara?branch=main#6f32ecfbb50f7a90f1b421a37bd5307874308de8"
 dependencies = [
  "anyhow",
  "apibara-core",
@@ -819,6 +819,7 @@ dependencies = [
 name = "carbonable-domain"
 version = "0.1.0"
 dependencies = [
+ "apibara-core",
  "apibara-sdk",
  "async-recursion",
  "async-trait",
@@ -855,6 +856,7 @@ dependencies = [
 name = "carbonable-indexer"
 version = "0.1.0"
 dependencies = [
+ "apibara-core",
  "apibara-sdk",
  "async-trait",
  "carbonable-domain",

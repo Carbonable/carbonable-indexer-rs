@@ -7,6 +7,7 @@ publish = false
 [dependencies]
 carbonable-domain.workspace = true
 apibara-sdk.workspace = true
+apibara-core.workspace = true
 starknet.workspace = true
 async-trait.workspace = true
 futures.workspace = true
