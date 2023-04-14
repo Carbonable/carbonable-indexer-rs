@@ -9,6 +9,10 @@ pub struct Args {
     pub gateway: String,
     #[arg(env = "DATABASE_URI")]
     pub database_uri: String,
+    #[arg(long, default_value_t = 1)]
+    pub starting_block: u64,
+    #[arg(long, default_value_t = 10)]
+    pub batch_size: u64,
 }
 
 #[derive(Error, Debug)]

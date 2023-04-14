@@ -10,7 +10,8 @@ members = [
 carbonable-domain = { path = "packages/domain"}
 
 actix-web = { version = "4.3.1", features = ["rustls"] }
-apibara-sdk = { git = "https://github.com/apibara/dna", branch = "main" }
+apibara-sdk = { git = "https://github.com/MartianGreed/apibara", branch = "main" }
+apibara-core = { git = "https://github.com/MartianGreed/apibara", branch = "main" }
 async-recursion = "1.0.4"
 # Using a fork here
 starknet = { git = "https://github.com/MartianGreed/starknet-rs", branch = "master" }

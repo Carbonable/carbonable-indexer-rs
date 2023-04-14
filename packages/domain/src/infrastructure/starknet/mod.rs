@@ -1,4 +1,5 @@
 pub mod badge;
+pub mod event_source;
 pub mod farming;
 pub mod minter;
 pub mod model;

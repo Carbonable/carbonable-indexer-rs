@@ -1,5 +1,6 @@
 pub mod badge;
 pub mod entity;
+pub mod event_source;
 pub mod farming;
 pub mod implementation;
 pub mod minter;
