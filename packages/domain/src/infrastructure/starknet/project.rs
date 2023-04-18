@@ -131,7 +131,7 @@ impl StarknetModel<Vec<HashMap<String, StarknetValue>>> for ProjectModel<Erc3525
         let generic_data = load_blockchain_data(
             self.provider.clone(),
             self.address,
-            &["getImplementationHash", "owner", "symbol"],
+            &["getImplementationHash", "owner", "symbol", "valueDecimals"],
         )
         .await?;
         let mut response_data: Vec<HashMap<String, StarknetValue>> = Vec::new();

@@ -9,13 +9,11 @@ use crate::IndexerError;
 
 /// Configure contract item filter
 fn configure_filter_item(filter: &mut Filter, event_keys: Option<Vec<FieldElement>>, value: &str) {
-    filter.add_event(|e| e.with_from_address(FieldElement::from_hex(value).unwrap()));
-    // if let Some(event_keys) = event_keys {
-    //     filter.add_event(|e| {
-    //         e.with_from_address(FieldElement::from_hex(value).unwrap())
-    //             .with_keys(event_keys.iter().map(|e| e.to_owned()).collect())
-    //     });
-    // }
+    let keys = event_keys.unwrap_or(vec![]);
+    filter.add_event(|e| {
+        e.with_from_address(FieldElement::from_hex(value).unwrap())
+            .with_keys(keys.to_vec())
+    });
 }
 
 /// Get the base event configurators.
@@ -28,55 +26,55 @@ fn build_event_configurators() -> HashMap<String, Vec<FieldElement>> {
     configurators.insert(
         "project".into(),
         [
-            // upgraded_selector.clone(),
-            // FieldElement::from_bytes(&selector!("AbsorptionUpdate").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("Transfer").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("TransferValue").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("ApprovalValue").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("Approval").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("ApprovalForAll").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("SlotChanged").to_bytes_be()),
-            // // token_id metadata updated
-            // FieldElement::from_bytes(&selector!("MetadataUpdate").to_bytes_be()),
-            // // batch token_id metadata update
-            // FieldElement::from_bytes(&selector!("BatchMetadataUpdate").to_bytes_be()),
+            upgraded_selector.clone(),
+            FieldElement::from_bytes(&selector!("AbsorptionUpdate").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("Transfer").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("TransferValue").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("ApprovalValue").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("Approval").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("ApprovalForAll").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("SlotChanged").to_bytes_be()),
+            // token_id metadata updated
+            FieldElement::from_bytes(&selector!("MetadataUpdate").to_bytes_be()),
+            // batch token_id metadata update
+            FieldElement::from_bytes(&selector!("BatchMetadataUpdate").to_bytes_be()),
         ]
         .to_vec(),
     );
     configurators.insert(
         "minter".into(),
         [
-            // upgraded_selector.clone(),
-            // FieldElement::from_bytes(&selector!("AirDrop").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("Buy").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("PreSaleOpen").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("PreSaleClosed").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("PublicSaleOpen").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("PublicSaleClosed").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("SoldOut").to_bytes_be()),
-            // // https://github.com/carbonable-labs/cairo-migrator/blob/main/src/migrator/library.cairo#L28
-            // FieldElement::from_bytes(&selector!("Migration").to_bytes_be()),
+            upgraded_selector.clone(),
+            FieldElement::from_bytes(&selector!("AirDrop").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("Buy").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("PreSaleOpen").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("PreSaleClosed").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("PublicSaleOpen").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("PublicSaleClosed").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("SoldOut").to_bytes_be()),
+            // https://github.com/carbonable-labs/cairo-migrator/blob/main/src/migrator/library.cairo#L28
+            FieldElement::from_bytes(&selector!("Migration").to_bytes_be()),
         ]
         .to_vec(),
     );
     configurators.insert(
         "yielder".into(),
         [
-            // upgraded_selector.clone(),
-            // FieldElement::from_bytes(&selector!("Deposit").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("Withdraw").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("Snapshot").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("Vesting").to_bytes_be()),
+            upgraded_selector.clone(),
+            FieldElement::from_bytes(&selector!("Deposit").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("Withdraw").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("Snapshot").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("Vesting").to_bytes_be()),
         ]
         .to_vec(),
     );
     configurators.insert(
         "offseter".into(),
         [
-            // upgraded_selector.clone(),
-            // FieldElement::from_bytes(&selector!("Deposit").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("Withdraw").to_bytes_be()),
-            // FieldElement::from_bytes(&selector!("Claim").to_bytes_be()),
+            upgraded_selector.clone(),
+            FieldElement::from_bytes(&selector!("Deposit").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("Withdraw").to_bytes_be()),
+            FieldElement::from_bytes(&selector!("Claim").to_bytes_be()),
         ]
         .to_vec(),
     );

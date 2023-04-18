@@ -1,10 +1,11 @@
+use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use starknet::core::types::FieldElement;
 use time::PrimitiveDateTime;
 use uuid::Uuid;
 
 use crate::{
-    domain::{crypto::U256, project::format_ton},
+    domain::{crypto::U256, Erc20, HumanComprehensibleU256, Mass, SlotValue},
     infrastructure::starknet::model::{StarknetValue, StarknetValueResolver},
 };
 
@@ -42,8 +43,11 @@ pub struct CustomerGlobalDataForComputation {
     pub id: uuid::Uuid,
     pub unit_price: U256,
     pub payment_decimals: U256,
+    pub payment_symbol: String,
     pub project_slot: U256,
     pub project_address: String,
+    pub value_decimals: U256,
+    pub ton_equivalent: U256,
     pub yielder_address: String,
     pub offseter_address: String,
     pub vester_address: String,
@@ -55,21 +59,44 @@ impl From<tokio_postgres::Row> for CustomerGlobalDataForComputation {
             id: value.get(0),
             unit_price: value.get(1),
             payment_decimals: value.get(2),
-            project_slot: value.get(3),
-            project_address: value.get(4),
-            yielder_address: value.get(5),
-            offseter_address: value.get(6),
-            vester_address: value.get(7),
+            payment_symbol: value.get(3),
+            project_slot: value.get(4),
+            project_address: value.get(5),
+            value_decimals: value.get(6),
+            ton_equivalent: value.get(7),
+            yielder_address: value.get(8),
+            offseter_address: value.get(9),
+            vester_address: value.get(10),
         }
     }
 }
 
 #[derive(Debug, Default, Serialize)]
 pub struct CustomerGlobalData {
-    pub total_deposited: U256,
-    pub total_released: U256,
-    pub total_claimable: U256,
+    // slot value
+    pub total_deposited: SlotValue,
+    // erc 20
+    pub total_released: Erc20,
+    // mass in gram
+    pub total_claimable: Mass<U256>,
 }
+#[derive(Debug, Default, Serialize)]
+pub struct DisplayableCustomerGlobalData {
+    pub total_deposited: HumanComprehensibleU256<U256>,
+    pub total_released: HumanComprehensibleU256<U256>,
+    pub total_claimable: HumanComprehensibleU256<U256>,
+}
+
+impl From<CustomerGlobalData> for DisplayableCustomerGlobalData {
+    fn from(value: CustomerGlobalData) -> Self {
+        Self {
+            total_deposited: value.total_deposited.into(),
+            total_released: value.total_released.into(),
+            total_claimable: value.total_claimable.into(),
+        }
+    }
+}
+
 impl CustomerGlobalData {
     pub fn merge(mut self, other: Self) -> Self {
         self.total_deposited += other.total_deposited;
@@ -86,7 +113,9 @@ pub struct CompleteFarmingData {
     pub times: Vec<PrimitiveDateTime>,
     pub absorptions: Vec<U256>,
     pub ton_equivalent: U256,
+    pub value_decimals: U256,
     pub payment_decimals: U256,
+    pub payment_symbol: String,
     pub offseter_address: Option<String>,
     pub yielder_id: Option<Uuid>,
     pub yielder_address: Option<String>,
@@ -108,13 +137,15 @@ impl From<tokio_postgres::Row> for CompleteFarmingData {
             times: value.get(2),
             absorptions: value.get(3),
             ton_equivalent: value.get(4),
-            payment_decimals: value.get(5),
-            offseter_address: value.get(6),
-            yielder_id: value.get(7),
-            yielder_address: value.get(8),
-            vester_address: value.get(9),
-            minter_id: value.get(10),
-            total_supply: value.get(11),
+            value_decimals: value.get(5),
+            payment_decimals: value.get(6),
+            payment_symbol: value.get(7),
+            offseter_address: value.get(8),
+            yielder_id: value.get(9),
+            yielder_address: value.get(10),
+            vester_address: value.get(11),
+            minter_id: value.get(12),
+            total_supply: value.get(13),
         }
     }
 }
@@ -125,8 +156,8 @@ pub struct UnconnectedFarmingData {
     pub apr: ProjectApr,
     #[serde(flatten)]
     pub status: ProjectStatus,
-    pub tvl: U256,
-    pub total_removal: U256,
+    pub tvl: HumanComprehensibleU256<U256>,
+    pub total_removal: HumanComprehensibleU256<U256>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -156,14 +187,14 @@ pub struct ContractsList {
 
 #[derive(Default, Debug, Serialize)]
 pub struct CustomerListingProjectData {
-    pub customer_stake: U256,
-    pub payment_decimals: U256,
+    pub customer_stake: HumanComprehensibleU256<U256>,
+    pub payment_decimals: u32,
     pub ton_equivalent: U256,
-    pub vesting_to_claim: U256,
-    pub absorption_to_claim: U256,
-    pub undeposited: U256,
+    pub vesting_to_claim: HumanComprehensibleU256<U256>,
+    pub absorption_to_claim: HumanComprehensibleU256<U256>,
+    pub undeposited: HumanComprehensibleU256<U256>,
     /// min_to_claim in kg
-    pub min_to_claim: U256,
+    pub min_to_claim: HumanComprehensibleU256<U256>,
     pub contracts: ContractsList,
 }
 
@@ -205,13 +236,31 @@ impl
             .into();
 
         Self {
-            customer_stake: project_data.unit_price * (yielder_deposited + offseter_deposited),
-            payment_decimals: project_data.payment_decimals,
+            customer_stake: SlotValue::from_blockchain(
+                yielder_deposited + offseter_deposited,
+                farming_data.value_decimals,
+            )
+            .into(),
+            payment_decimals: project_data.payment_decimals.into(),
             ton_equivalent: farming_data.ton_equivalent,
-            vesting_to_claim: claimable_of,
-            absorption_to_claim: (releasable_of / farming_data.ton_equivalent),
-            undeposited: balance_of - (yielder_deposited + offseter_deposited),
-            min_to_claim: min_claimable,
+            vesting_to_claim: Erc20::from_blockchain(
+                claimable_of,
+                farming_data.payment_decimals,
+                farming_data.payment_symbol,
+            )
+            .into(),
+            absorption_to_claim: Mass::<U256>::from_blockchain(
+                releasable_of,
+                farming_data.ton_equivalent,
+            )
+            .into(),
+            undeposited: SlotValue::from_blockchain(
+                balance_of - (yielder_deposited + offseter_deposited),
+                farming_data.value_decimals,
+            )
+            .into(),
+            min_to_claim: Mass::<U256>::from_blockchain(min_claimable, farming_data.ton_equivalent)
+                .into(),
             contracts: ContractsList {
                 vester: farming_data.vester_address.unwrap_or_default(),
                 yielder: farming_data.yielder_address.unwrap_or_default(),
@@ -223,30 +272,33 @@ impl
 
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct Overview {
-    total_removal: U256,
-    tvl: U256,
+    total_removal: HumanComprehensibleU256<U256>,
+    tvl: HumanComprehensibleU256<U256>,
+    #[serde(flatten)]
     current_apr: ProjectApr,
-    total_yielded: U256,
-    total_offseted: U256,
+    total_yielded: HumanComprehensibleU256<U256>,
+    total_offseted: HumanComprehensibleU256<U256>,
 }
+
 #[derive(Default, Clone, Debug, Serialize)]
-pub struct PoolLiquidity {
-    total: U256,
-    available: U256,
+pub struct PoolLiquidity<T> {
+    total: HumanComprehensibleU256<T>,
+    available: HumanComprehensibleU256<T>,
 }
+
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct CarbonCredits {
-    generated_credits: U256,
-    to_be_generated: U256,
-    r#yield: PoolLiquidity,
-    offset: PoolLiquidity,
+    generated_credits: HumanComprehensibleU256<BigDecimal>,
+    to_be_generated: HumanComprehensibleU256<BigDecimal>,
+    r#yield: PoolLiquidity<Erc20>,
+    offset: PoolLiquidity<Mass<U256>>,
 }
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct Allocation {
-    total: U256,
-    r#yield: U256,
-    offseted: U256,
-    undeposited: U256,
+    total: HumanComprehensibleU256<U256>,
+    r#yield: HumanComprehensibleU256<U256>,
+    offseted: HumanComprehensibleU256<U256>,
+    undeposited: HumanComprehensibleU256<U256>,
 }
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct CustomerDetailsProjectData {
@@ -254,8 +306,8 @@ pub struct CustomerDetailsProjectData {
     carbon_credits: CarbonCredits,
     allocation: Allocation,
     contracts: ContractsList,
-    payment_decimals: U256,
-    ton_equivalent: U256,
+    payment_decimals: u32,
+    ton_equivalent: BigDecimal,
 }
 
 impl CustomerDetailsProjectData {
@@ -282,6 +334,7 @@ impl CustomerDetailsProjectData {
         &mut self,
         data: Vec<Vec<FieldElement>>,
         project: &CompleteFarmingData,
+        farming_data: &CustomerGlobalDataForComputation,
     ) -> &mut Self {
         let balance_of: U256 = StarknetValue::new(data[0].clone()).resolve("u256").into();
         let current_absorption: U256 = StarknetValue::new(data[1].clone()).resolve("u256").into();
@@ -300,29 +353,72 @@ impl CustomerDetailsProjectData {
             .total_supply
             .unwrap_or(U256::from(crypto_bigint::U256::from_u8(0)));
 
-        self.overview.total_removal = project.final_absorption() - current_absorption;
-        self.overview.total_yielded = yielder_total_deposited;
-        self.overview.total_offseted = offseter_total_deposited;
+        self.overview.total_removal = Mass::<U256>::from_blockchain(
+            project.final_absorption() - current_absorption,
+            project.ton_equivalent,
+        )
+        .into();
+        self.overview.total_yielded =
+            SlotValue::from_blockchain(yielder_total_deposited, project.value_decimals).into();
+        self.overview.total_offseted =
+            SlotValue::from_blockchain(offseter_total_deposited, project.value_decimals).into();
 
-        self.carbon_credits.generated_credits = (current_absorption / total_supply) * balance_of;
-        self.carbon_credits.to_be_generated =
-            ((project.final_absorption() - current_absorption) / total_supply) * balance_of;
+        self.overview.tvl = Erc20::from_blockchain(
+            farming_data.unit_price * (offseter_deposited_of + yielder_total_deposited),
+            farming_data.payment_decimals,
+            farming_data.payment_symbol.clone(),
+        )
+        .into();
+
+        self.carbon_credits.generated_credits = Mass::<BigDecimal>::from_blockchain(
+            current_absorption.to_big_decimal(0) * balance_of.to_big_decimal(0)
+                / total_supply.to_big_decimal(0),
+        )
+        .into();
+        self.carbon_credits.to_be_generated = Mass::<BigDecimal>::from_blockchain(
+            (project.final_absorption().to_big_decimal(0) - current_absorption.to_big_decimal(0))
+                * balance_of.to_big_decimal(0)
+                / total_supply.to_big_decimal(0),
+        )
+        .into();
+
         self.carbon_credits.r#yield = PoolLiquidity {
-            available: releasable_of,
-            total: released_of,
+            available: Erc20::from_blockchain(
+                releasable_of,
+                project.payment_decimals,
+                project.payment_symbol.clone(),
+            )
+            .into(),
+            total: Erc20::from_blockchain(
+                released_of,
+                project.payment_decimals,
+                project.payment_symbol.clone(),
+            )
+            .into(),
         };
         self.carbon_credits.offset = PoolLiquidity {
-            available: claimable_of,
-            total: claimed_of,
+            available: Mass::<U256>::from_blockchain(claimable_of, project.ton_equivalent).into(),
+            total: Mass::<U256>::from_blockchain(claimed_of, project.ton_equivalent).into(),
         };
 
-        self.allocation.total = balance_of;
-        self.allocation.r#yield = yielder_deposited_of;
-        self.allocation.offseted = offseter_deposited_of;
-        self.allocation.undeposited = balance_of - (yielder_deposited_of + offseter_deposited_of);
+        self.allocation.total =
+            SlotValue::from_blockchain(balance_of, project.value_decimals).into();
+        self.allocation.r#yield = Erc20::from_blockchain(
+            yielder_deposited_of,
+            project.payment_decimals,
+            project.payment_symbol.clone(),
+        )
+        .into();
+        self.allocation.offseted =
+            Mass::<U256>::from_blockchain(offseter_deposited_of, project.ton_equivalent).into();
+        self.allocation.undeposited = SlotValue::from_blockchain(
+            balance_of - (yielder_deposited_of + offseter_deposited_of),
+            project.value_decimals,
+        )
+        .into();
 
-        self.ton_equivalent = project.ton_equivalent;
-        self.payment_decimals = project.payment_decimals;
+        self.ton_equivalent = project.ton_equivalent.to_big_decimal(0);
+        self.payment_decimals = project.payment_decimals.into();
 
         self
     }

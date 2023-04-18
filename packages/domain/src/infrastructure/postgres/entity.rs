@@ -71,6 +71,7 @@ pub struct Project {
     pub times: Vec<PrimitiveDateTime>,
     pub absorptions: Vec<U256>,
     pub setup: bool,
+    pub value_decimals: U256,
     pub erc_implementation: ErcImplementation,
     pub implementation_id: Option<Uuid>,
     pub uri_id: Option<Uuid>,
@@ -91,7 +92,8 @@ impl From<tokio_postgres::Row> for Project {
             times: value.get(9),
             absorptions: value.get(10),
             setup: value.get(11),
-            erc_implementation: value.get(12),
+            value_decimals: value.get(12),
+            erc_implementation: value.get(13),
             implementation_id: None,
             uri_id: None,
         }

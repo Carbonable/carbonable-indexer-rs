@@ -2,6 +2,7 @@ use bigdecimal::ToPrimitive;
 use crypto_bigint::{CheckedAdd, CheckedMul, CheckedSub, Encoding};
 use postgres_types::FromSql;
 use serde::{ser::SerializeStruct, Serialize};
+use std::fmt::Display;
 
 #[derive(Debug, Copy, PartialEq, Eq, Default, Clone)]
 pub struct U256(pub(crate) crypto_bigint::U256);
@@ -9,31 +10,19 @@ impl U256 {
     pub fn zero() -> Self {
         Self(crypto_bigint::U256::ZERO)
     }
-}
+    pub fn to_big_decimal<D: Into<i64>>(&self, decimals: D) -> bigdecimal::BigDecimal {
+        use bigdecimal::num_bigint::{BigInt, Sign};
 
-/// A U256 human-comprehensible representation.
-/// This keeps track of an inner U256 and a string
-/// that will help frontend to display content easyli
-#[derive(Debug, Default, Clone, Serialize)]
-pub struct HumanComprehensibleU256 {
-    #[serde(rename = "value")]
-    pub inner: U256,
-    #[serde(rename = "displayable_value")]
-    pub repr: String,
-}
-
-impl From<U256> for HumanComprehensibleU256 {
-    fn from(value: U256) -> Self {
-        Self {
-            inner: value,
-            repr: value.0.to_string(),
-        }
+        bigdecimal::BigDecimal::new(
+            BigInt::from_bytes_be(Sign::Plus, &crypto_bigint::Encoding::to_be_bytes(&self.0)),
+            decimals.into(),
+        )
     }
 }
 
-impl From<HumanComprehensibleU256> for U256 {
-    fn from(value: HumanComprehensibleU256) -> Self {
-        value.inner
+impl From<U256> for u32 {
+    fn from(value: U256) -> Self {
+        value.0.to_words()[0].try_into().unwrap()
     }
 }
 
@@ -42,13 +31,14 @@ impl Serialize for U256 {
     where
         S: serde::Serializer,
     {
-        let words = self.0.to_words();
-        let mut u256 = serializer.serialize_struct("U256", 4)?;
-        u256.serialize_field("lo_lo", &words[0])?;
-        u256.serialize_field("lo_hi", &words[1])?;
-        u256.serialize_field("hi_lo", &words[2])?;
-        u256.serialize_field("hi_hi", &words[3])?;
-        u256.end()
+        serializer.serialize_str(self.0.to_string().as_str())
+        // let words = self.0.to_words();
+        // let mut u256 = serializer.serialize_struct("U256", 4)?;
+        // u256.serialize_field("lo_lo", &words[0])?;
+        // u256.serialize_field("lo_hi", &words[1])?;
+        // u256.serialize_field("hi_lo", &words[2])?;
+        // u256.serialize_field("hi_hi", &words[3])?;
+        // u256.end()
     }
 }
 
@@ -57,7 +47,8 @@ impl<'a> FromSql<'a> for U256 {
         _ty: &postgres_types::Type,
         raw: &'a [u8],
     ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
-        Ok(U256(crypto_bigint::U256::from_be_slice(raw)))
+        let bytes: [u8; 32] = raw.try_into().unwrap();
+        Ok(U256(crypto_bigint::U256::from_be_bytes(bytes)))
     }
 
     fn accepts(ty: &postgres_types::Type) -> bool {

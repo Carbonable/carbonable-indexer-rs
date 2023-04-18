@@ -48,6 +48,7 @@ impl PostgresProject {
                 ProjectIden::Times,
                 ProjectIden::Absorptions,
                 ProjectIden::Setup,
+                ProjectIden::ValueDecimals,
                 ProjectIden::ErcImplementation,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
@@ -114,6 +115,7 @@ impl PostgresProject {
                 ProjectIden::Times,
                 ProjectIden::Absorptions,
                 ProjectIden::Setup,
+                ProjectIden::ValueDecimals,
                 ProjectIden::ErcImplementation,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
@@ -147,6 +149,7 @@ impl PostgresProject {
             .columns([
                 (PaymentIden::Table, PaymentIden::Id),
                 (PaymentIden::Table, PaymentIden::Decimals),
+                (PaymentIden::Table, PaymentIden::Symbol),
             ])
             .from(ProjectIden::Table)
             .left_join(
@@ -181,6 +184,10 @@ impl PostgresProject {
             None => "tokenSupplyInSlot",
             Some(_) => "totalSupply",
         };
+        let value_decimals = match data.get_mut("valueDecimals") {
+            None => U256(crypto_bigint::U256::from_u64(0)).into(),
+            Some(v) => v.resolve("u256").into(),
+        };
         let (sql, values) = Query::insert()
             .into_table(ProjectIden::Table)
             .columns([
@@ -196,6 +203,7 @@ impl PostgresProject {
                 ProjectIden::Times,
                 ProjectIden::Absorptions,
                 ProjectIden::Setup,
+                ProjectIden::ValueDecimals,
                 ProjectIden::ErcImplementation,
                 ProjectIden::ImplementationId,
                 ProjectIden::UriId,
@@ -250,6 +258,7 @@ impl PostgresProject {
                     .expect("isSetup has to be provided")
                     .resolve("bool")
                     .into(),
+                value_decimals,
                 sea_query::Value::String(Some(Box::new(erc_implementation.to_string()))).into(),
                 implementation_id.into(),
                 uri_id.into(),

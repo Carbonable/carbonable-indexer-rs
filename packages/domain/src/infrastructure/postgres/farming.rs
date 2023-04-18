@@ -75,8 +75,11 @@ impl PostgresFarming {
             .column((ProjectIden::Table, ProjectIden::Id))
             .column((MinterIden::Table, MinterIden::UnitPrice))
             .column((PaymentIden::Table, PaymentIden::Decimals))
+            .column((PaymentIden::Table, PaymentIden::Symbol))
             .column((ProjectIden::Table, ProjectIden::Slot))
             .column((ProjectIden::Table, ProjectIden::Address))
+            .column((ProjectIden::Table, ProjectIden::ValueDecimals))
+            .column((ProjectIden::Table, ProjectIden::TonEquivalent))
             .column((YielderIden::Table, YielderIden::Address))
             .column((OffseterIden::Table, OffseterIden::Address))
             .column((VesterIden::Table, VesterIden::Address))
@@ -139,8 +142,12 @@ impl PostgresFarming {
                 (ProjectIden::Table, ProjectIden::Times),
                 (ProjectIden::Table, ProjectIden::Absorptions),
                 (ProjectIden::Table, ProjectIden::TonEquivalent),
+                (ProjectIden::Table, ProjectIden::ValueDecimals),
             ])
-            .column((PaymentIden::Table, PaymentIden::Decimals))
+            .columns([
+                (PaymentIden::Table, PaymentIden::Decimals),
+                (PaymentIden::Table, PaymentIden::Symbol),
+            ])
             .column((OffseterIden::Table, OffseterIden::Address))
             .columns([
                 (YielderIden::Table, YielderIden::Id),

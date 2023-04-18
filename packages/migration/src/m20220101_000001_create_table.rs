@@ -100,6 +100,11 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(ProjectIden::Setup).boolean().default(false))
                     .col(
+                        ColumnDef::new(ProjectIden::ValueDecimals)
+                            .binary()
+                            .not_null(),
+                    )
+                    .col(
                         ColumnDef::new(ProjectIden::ErcImplementation)
                             .enumeration(
                                 ErcImplementation::Enum,
