@@ -14,6 +14,7 @@ pub struct ProjectWithMinterAndPaymentViewModel {
     pub erc_implementation: ErcImplementation,
     pub minter_id: Uuid,
     pub unit_price: U256,
+    pub symbol: String,
     pub minter_address: String,
     pub payment_id: Uuid,
     pub payment_decimals: U256,
@@ -31,9 +32,10 @@ impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
             erc_implementation,
             minter_id: value.get(6),
             unit_price: value.get(7),
-            minter_address: value.get(8),
-            payment_id: value.get(9),
-            payment_decimals: value.get(10),
+            symbol: value.get(8),
+            minter_address: value.get(9),
+            payment_id: value.get(10),
+            payment_decimals: value.get(11),
         }
     }
 }

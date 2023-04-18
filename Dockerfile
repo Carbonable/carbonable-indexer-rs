@@ -2,7 +2,7 @@ FROM --platform=linux/amd64 rust:1.68-slim-bullseye as builder
 
 # Add unstable to packages list to install specific protobuf-compiler version
 RUN echo "deb http://deb.debian.org/debian unstable main" >> /etc/apt/sources.list
-RUN apt update && apt install pkg-config openssl libssl-dev curl unzip protobuf-compiler=3.21.12-2 -y
+RUN apt update && apt install pkg-config openssl libssl-dev curl unzip protobuf-compiler=3.21.12-3 -y
 
 WORKDIR /srv/www
 COPY . .

@@ -7,7 +7,6 @@ use starknet::{
 };
 use time::OffsetDateTime;
 
-use crate::domain::crypto::U256;
 use crate::infrastructure::{
     flatten,
     postgres::entity::{Snapshot, Vesting},
@@ -16,6 +15,10 @@ use crate::infrastructure::{
         CustomerGlobalDataForComputation, CustomerListingProjectData, ProjectApr, ProjectStatus,
         UnconnectedFarmingData,
     },
+};
+use crate::{
+    domain::{crypto::U256, Erc20, Mass, SlotValue},
+    infrastructure::view_model::farming::DisplayableCustomerGlobalData,
 };
 use std::sync::Arc;
 
@@ -111,9 +114,13 @@ async fn customer_farming_data(
     .await?;
 
     Ok(CustomerGlobalData {
-        total_deposited: value * (data.unit_price),
-        total_released: releaseable_of,
-        total_claimable: claimable_of,
+        total_deposited: SlotValue::from_blockchain(value, data.value_decimals),
+        total_released: Erc20::from_blockchain(
+            releaseable_of,
+            data.payment_decimals,
+            data.payment_symbol.clone(),
+        ),
+        total_claimable: Mass::<U256>::from_blockchain(claimable_of, data.ton_equivalent),
     })
 }
 
@@ -122,7 +129,7 @@ async fn customer_farming_data(
 pub async fn get_customer_global_farming_data(
     wallet: String,
     addresses: Vec<CustomerGlobalDataForComputation>,
-) -> Result<CustomerGlobalData, ModelError> {
+) -> Result<DisplayableCustomerGlobalData, ModelError> {
     let mut handles = vec![];
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     for data in addresses.into_iter() {
@@ -133,10 +140,11 @@ pub async fn get_customer_global_farming_data(
         handles.push(flatten(handle));
     }
     let customer_global_data = futures::future::try_join_all(handles).await;
-    Ok(customer_global_data
+    let aggregated_data = customer_global_data
         .into_iter()
         .flatten()
-        .fold(CustomerGlobalData::default(), |acc, e| acc.merge(e)))
+        .fold(CustomerGlobalData::default(), |acc, e| acc.merge(e));
+    Ok(aggregated_data.into())
 }
 
 /// Calculates project APR base on :
@@ -238,8 +246,14 @@ pub async fn get_unconnected_project_data(
     Ok(UnconnectedFarmingData {
         apr,
         status,
-        tvl: (data.unit_price * (total_yielded + total_yielded) / data.payment_decimals),
-        total_removal: last_absorptions / farming_data.ton_equivalent,
+        tvl: Erc20::from_blockchain(
+            data.unit_price * (total_offseted + total_yielded),
+            farming_data.payment_decimals,
+            farming_data.payment_symbol,
+        )
+        .into(),
+        total_removal: Mass::<U256>::from_blockchain(last_absorptions, farming_data.ton_equivalent)
+            .into(),
     })
 }
 
@@ -367,7 +381,7 @@ pub async fn get_customer_details_project_data(
     ];
 
     let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
-    builder = builder.compute_blockchain_data(data, &farming_data);
+    builder = builder.compute_blockchain_data(data, &farming_data, &project_data);
 
     let customer_details_project_data = builder.build();
 
