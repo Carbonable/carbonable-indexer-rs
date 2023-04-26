@@ -2,6 +2,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::domain::crypto::U256;
+use crate::domain::HumanComprehensibleU256;
 use crate::infrastructure::postgres::entity::ErcImplementation;
 
 #[derive(Debug)]
@@ -12,12 +13,15 @@ pub struct ProjectWithMinterAndPaymentViewModel {
     pub slug: String,
     pub slot: Option<U256>,
     pub erc_implementation: ErcImplementation,
+    pub value_decimals: U256,
     pub minter_id: Uuid,
     pub unit_price: U256,
     pub symbol: String,
     pub minter_address: String,
     pub payment_id: Uuid,
     pub payment_decimals: U256,
+    pub abi: serde_json::Value,
+    pub minter_abi: serde_json::Value,
 }
 
 impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
@@ -30,12 +34,15 @@ impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
             slug: value.get(3),
             slot: value.get(4),
             erc_implementation,
-            minter_id: value.get(6),
-            unit_price: value.get(7),
-            symbol: value.get(8),
-            minter_address: value.get(9),
-            payment_id: value.get(10),
-            payment_decimals: value.get(11),
+            value_decimals: value.get(6),
+            minter_id: value.get(7),
+            unit_price: value.get(8),
+            symbol: value.get(9),
+            minter_address: value.get(10),
+            payment_id: value.get(11),
+            payment_decimals: value.get(12),
+            abi: value.get(13),
+            minter_abi: value.get(14),
         }
     }
 }
@@ -50,9 +57,18 @@ pub struct Token {
 #[derive(Debug, Default, Serialize)]
 pub struct Erc3525Token {
     pub token_id: U256,
+    #[serde(skip_serializing)]
     pub value: U256,
     pub name: String,
     pub image: String,
+    #[serde(rename = "value")]
+    pub slot_value: HumanComprehensibleU256<U256>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PortfolioAbi {
+    pub project: serde_json::Value,
+    pub minter: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -66,6 +82,7 @@ pub enum ProjectWithTokens {
         tokens: Vec<Token>,
         #[serde(skip_serializing)]
         total_amount: U256,
+        abi: PortfolioAbi,
     },
     Erc3525 {
         id: Uuid,
@@ -75,6 +92,7 @@ pub enum ProjectWithTokens {
         tokens: Vec<Erc3525Token>,
         #[serde(skip_serializing)]
         total_amount: U256,
+        abi: PortfolioAbi,
     },
 }
 

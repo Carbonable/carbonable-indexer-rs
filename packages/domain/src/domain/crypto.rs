@@ -1,8 +1,7 @@
 use bigdecimal::ToPrimitive;
 use crypto_bigint::{CheckedAdd, CheckedMul, CheckedSub, Encoding};
 use postgres_types::FromSql;
-use serde::{ser::SerializeStruct, Serialize};
-use std::fmt::Display;
+use serde::Serialize;
 
 #[derive(Debug, Copy, PartialEq, Eq, Default, Clone)]
 pub struct U256(pub(crate) crypto_bigint::U256);
@@ -32,13 +31,6 @@ impl Serialize for U256 {
         S: serde::Serializer,
     {
         serializer.serialize_str(self.0.to_string().as_str())
-        // let words = self.0.to_words();
-        // let mut u256 = serializer.serialize_struct("U256", 4)?;
-        // u256.serialize_field("lo_lo", &words[0])?;
-        // u256.serialize_field("lo_hi", &words[1])?;
-        // u256.serialize_field("hi_lo", &words[2])?;
-        // u256.serialize_field("hi_hi", &words[3])?;
-        // u256.end()
     }
 }
 
@@ -64,6 +56,11 @@ impl From<crypto_bigint::U256> for U256 {
 impl From<U256> for crypto_bigint::U256 {
     fn from(value: U256) -> Self {
         value.0
+    }
+}
+impl From<U256> for u64 {
+    fn from(value: U256) -> Self {
+        value.0.to_words()[0]
     }
 }
 

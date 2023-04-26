@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 carbonable-domain.workspace = true
+bigdecimal.workspace = true
 actix-web.workspace = true
 apibara-sdk.workspace = true
 starknet.workspace = true

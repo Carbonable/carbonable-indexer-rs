@@ -1,6 +1,7 @@
 pub mod badge;
 pub mod entity;
 pub mod event_source;
+pub mod event_store;
 pub mod farming;
 pub mod implementation;
 pub mod minter;
@@ -170,7 +171,7 @@ pub async fn find_or_create_3525_project(
                         error!("project not created yet");
                         while db_models.project.find_by_address(address).await?.is_none() {
                             tokio::time::sleep(Duration::from_secs(10)).await;
-                            seeder.seed(address.to_string()).await;
+                            let _seed_res = seeder.seed(address.to_string()).await;
                         }
 
                         Ok(db_models
@@ -257,7 +258,7 @@ pub async fn find_or_create_uri_721(
             let metadata: Metadata = uri_model.load().await?;
 
             Ok(db_model
-                .create(address, serde_json::to_value(&metadata)?)
+                .create(project_uri, address, serde_json::to_value(&metadata)?)
                 .await?)
         }
     }
@@ -274,7 +275,7 @@ pub async fn find_or_create_uri_3525(
             let metadata: Erc3525Metadata = uri_model.load().await?;
 
             Ok(db_model
-                .create(address, serde_json::to_value(&metadata)?)
+                .create(project_uri, address, serde_json::to_value(&metadata)?)
                 .await?)
         }
     }

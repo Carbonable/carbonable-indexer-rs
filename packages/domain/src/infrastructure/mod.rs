@@ -1,6 +1,7 @@
 use tokio::task::JoinHandle;
 
 pub mod app;
+pub mod in_memory;
 pub mod postgres;
 pub mod seed;
 pub mod starknet;

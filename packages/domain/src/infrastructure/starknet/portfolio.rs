@@ -7,7 +7,7 @@ use starknet::{
 };
 
 use crate::{
-    domain::{crypto::U256, Erc721},
+    domain::{crypto::U256, Erc721, SlotValue},
     infrastructure::view_model::portfolio::{
         Erc3525Token, ProjectWithMinterAndPaymentViewModel, Token,
     },
@@ -116,7 +116,7 @@ pub(crate) async fn get_value_of_token_in_slot(
     provider: &JsonRpcClient<HttpTransport>,
     address: &str,
     token_id: &U256,
-) -> Result<u64, ModelError> {
+) -> Result<U256, ModelError> {
     let response = provider
         .call(
             get_call_function(
@@ -127,7 +127,7 @@ pub(crate) async fn get_value_of_token_in_slot(
             &BlockId::Tag(BlockTag::Latest),
         )
         .await?;
-    Ok(u64::try_from(response.first().unwrap().to_owned()).unwrap())
+    Ok(felt_to_u256(response.first().unwrap().to_owned()))
 }
 
 /// Load ERC-721 portfolio from starknet data
@@ -170,13 +170,14 @@ pub async fn load_erc_3525_portfolio(
         }
 
         let token_uri = get_token_uri(&provider, address, &token_id).await?;
-        let value = get_value_of_token_in_slot(&provider, address, &token_id).await?;
+        let value: U256 = get_value_of_token_in_slot(&provider, address, &token_id).await?;
 
         tokens.push(Some(Erc3525Token {
             token_id,
             name: project.name.to_string(),
-            value: value.into(),
+            value,
             image: token_uri,
+            slot_value: SlotValue::from_blockchain(value, project.value_decimals).into(),
         }));
     }
 

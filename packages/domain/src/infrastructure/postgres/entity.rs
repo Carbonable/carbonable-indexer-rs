@@ -121,6 +121,7 @@ impl From<tokio_postgres::Row> for Implementation {
 pub struct Uri {
     pub id: Uuid,
     pub uri: String,
+    pub address: String,
     pub data: serde_json::Value,
 }
 
@@ -129,7 +130,8 @@ impl From<tokio_postgres::Row> for Uri {
         Self {
             id: value.get(0),
             uri: value.get(1),
-            data: value.get(2),
+            address: value.get(2),
+            data: value.get(3),
         }
     }
 }
@@ -333,4 +335,30 @@ pub struct Badge {
     pub owner: String,
     pub implementation_id: Option<Uuid>,
     pub uri_id: Option<Uuid>,
+}
+
+#[enum_def]
+pub struct CustomerToken {
+    pub id: Uuid,
+    pub address: String,
+    pub project_address: String,
+    pub slot: Option<U256>,
+    pub token_id: U256,
+    pub value: Option<U256>,
+    pub value_decimals: Option<U256>,
+    pub erc_implementation: Option<ErcImplementation>,
+    pub unit_price: Option<U256>,
+    pub price_decimals: Option<U256>,
+    pub price_symbol: Option<String>,
+}
+
+#[enum_def]
+pub struct EventStore {
+    pub id: Uuid,
+    pub event_id: String,
+    pub block_number: U256,
+    pub block_hash: String,
+    pub metadata: serde_json::Value,
+    pub payload: serde_json::Value,
+    pub recorded_at: PrimitiveDateTime,
 }

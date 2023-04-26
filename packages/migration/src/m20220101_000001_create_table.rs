@@ -41,8 +41,9 @@ impl MigrationTrait for Migration {
                     .table(UriIden::Table)
                     .if_not_exists()
                     .col(ColumnDef::new(UriIden::Id).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(UriIden::Uri).string().not_null())
                     .col(
-                        ColumnDef::new(UriIden::Uri)
+                        ColumnDef::new(UriIden::Address)
                             .string()
                             .unique_key()
                             .not_null(),

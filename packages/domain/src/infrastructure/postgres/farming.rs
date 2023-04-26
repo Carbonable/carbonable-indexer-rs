@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use deadpool_postgres::Pool;
-use sea_query::{Expr, PostgresQueryBuilder, Query};
+use sea_query::{Alias, Expr, JoinType, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use tracing::error;
 use uuid::Uuid;
@@ -12,8 +12,8 @@ use crate::infrastructure::view_model::farming::{
 
 use super::{
     entity::{
-        ErcImplementation, MinterIden, OffseterIden, PaymentIden, ProjectIden, Snapshot,
-        SnapshotIden, UriIden, VesterIden, Vesting, VestingIden, YielderIden,
+        ErcImplementation, ImplementationIden, MinterIden, OffseterIden, PaymentIden, ProjectIden,
+        Snapshot, SnapshotIden, UriIden, VesterIden, Vesting, VestingIden, YielderIden,
     },
     PostgresError,
 };
@@ -43,6 +43,7 @@ impl PostgresFarming {
             ])
             .columns([
                 (UriIden::Table, UriIden::Uri),
+                (UriIden::Table, UriIden::Address),
                 (UriIden::Table, UriIden::Data),
             ])
             .left_join(
@@ -147,6 +148,7 @@ impl PostgresFarming {
             .columns([
                 (PaymentIden::Table, PaymentIden::Decimals),
                 (PaymentIden::Table, PaymentIden::Symbol),
+                (PaymentIden::Table, PaymentIden::Address),
             ])
             .column((OffseterIden::Table, OffseterIden::Address))
             .columns([
@@ -158,6 +160,24 @@ impl PostgresFarming {
                 (MinterIden::Table, MinterIden::Id),
                 (MinterIden::Table, MinterIden::TotalValue),
             ])
+            .column((
+                Alias::new("project_implementation"),
+                ImplementationIden::Abi,
+            ))
+            .column((Alias::new("minter_implementation"), ImplementationIden::Abi))
+            .column((
+                Alias::new("offseter_implementation"),
+                ImplementationIden::Abi,
+            ))
+            .column((
+                Alias::new("yielder_implementation"),
+                ImplementationIden::Abi,
+            ))
+            .column((Alias::new("vester_implementation"), ImplementationIden::Abi))
+            .column((
+                Alias::new("payment_implementation"),
+                ImplementationIden::Abi,
+            ))
             .left_join(
                 YielderIden::Table,
                 Expr::col((YielderIden::Table, YielderIden::ProjectId))
@@ -182,6 +202,60 @@ impl PostgresFarming {
                 PaymentIden::Table,
                 Expr::col((PaymentIden::Table, PaymentIden::Id))
                     .equals((MinterIden::Table, MinterIden::PaymentId)),
+            )
+            .join_as(
+                JoinType::LeftJoin,
+                ImplementationIden::Table,
+                Alias::new("project_implementation"),
+                Expr::col((ProjectIden::Table, ProjectIden::Address)).equals((
+                    Alias::new("project_implementation"),
+                    ImplementationIden::Address,
+                )),
+            )
+            .join_as(
+                JoinType::LeftJoin,
+                ImplementationIden::Table,
+                Alias::new("minter_implementation"),
+                Expr::col((MinterIden::Table, MinterIden::Address)).equals((
+                    Alias::new("minter_implementation"),
+                    ImplementationIden::Address,
+                )),
+            )
+            .join_as(
+                JoinType::LeftJoin,
+                ImplementationIden::Table,
+                Alias::new("offseter_implementation"),
+                Expr::col((OffseterIden::Table, OffseterIden::Address)).equals((
+                    Alias::new("offseter_implementation"),
+                    ImplementationIden::Address,
+                )),
+            )
+            .join_as(
+                JoinType::LeftJoin,
+                ImplementationIden::Table,
+                Alias::new("yielder_implementation"),
+                Expr::col((YielderIden::Table, YielderIden::Address)).equals((
+                    Alias::new("yielder_implementation"),
+                    ImplementationIden::Address,
+                )),
+            )
+            .join_as(
+                JoinType::LeftJoin,
+                ImplementationIden::Table,
+                Alias::new("vester_implementation"),
+                Expr::col((VesterIden::Table, VesterIden::Address)).equals((
+                    Alias::new("vester_implementation"),
+                    ImplementationIden::Address,
+                )),
+            )
+            .join_as(
+                JoinType::LeftJoin,
+                ImplementationIden::Table,
+                Alias::new("payment_implementation"),
+                Expr::col((PaymentIden::Table, PaymentIden::Address)).equals((
+                    Alias::new("payment_implementation"),
+                    ImplementationIden::Address,
+                )),
             )
             .and_where(Expr::col((ProjectIden::Table, ProjectIden::Slug)).eq(slug))
             .and_where(
