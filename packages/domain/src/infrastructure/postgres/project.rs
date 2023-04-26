@@ -8,7 +8,7 @@ use crate::infrastructure::{
     starknet::model::StarknetValueResolver,
     view_model::{portfolio::ProjectWithMinterAndPaymentViewModel, project::ProjectViewModel},
 };
-use sea_query::{Expr, PostgresQueryBuilder, Query};
+use sea_query::{Alias, Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use tracing::error;
 use uuid::Uuid;
@@ -17,7 +17,7 @@ use crate::domain::crypto::U256;
 use crate::infrastructure::starknet::model::StarknetValue;
 
 use super::{
-    entity::{ErcImplementation, MinterIden, PaymentIden, Project, UriIden},
+    entity::{ErcImplementation, ImplementationIden, MinterIden, PaymentIden, Project, UriIden},
     PostgresError,
 };
 
@@ -140,17 +140,20 @@ impl PostgresProject {
                 (ProjectIden::Table, ProjectIden::Slug),
                 (ProjectIden::Table, ProjectIden::Slot),
                 (ProjectIden::Table, ProjectIden::ErcImplementation),
+                (ProjectIden::Table, ProjectIden::ValueDecimals),
             ])
             .columns([
                 (MinterIden::Table, MinterIden::Id),
                 (MinterIden::Table, MinterIden::UnitPrice),
-                (MinterIden::Table, MinterIden::Address),
             ])
+            .column((PaymentIden::Table, PaymentIden::Symbol))
+            .column((MinterIden::Table, MinterIden::Address))
             .columns([
                 (PaymentIden::Table, PaymentIden::Id),
                 (PaymentIden::Table, PaymentIden::Decimals),
-                (PaymentIden::Table, PaymentIden::Symbol),
             ])
+            .column((ImplementationIden::Table, ImplementationIden::Abi))
+            .column((Alias::new("minter_implementation"), ImplementationIden::Abi))
             .from(ProjectIden::Table)
             .left_join(
                 MinterIden::Table,
@@ -161,6 +164,20 @@ impl PostgresProject {
                 PaymentIden::Table,
                 Expr::col((PaymentIden::Table, PaymentIden::Id))
                     .equals((MinterIden::Table, MinterIden::PaymentId)),
+            )
+            .left_join(
+                ImplementationIden::Table,
+                Expr::col((ProjectIden::Table, ProjectIden::Address))
+                    .equals((ImplementationIden::Table, ImplementationIden::Address)),
+            )
+            .join_as(
+                sea_query::JoinType::LeftJoin,
+                ImplementationIden::Table,
+                Alias::new("minter_implementation"),
+                Expr::col((MinterIden::Table, MinterIden::Address)).equals((
+                    Alias::new("minter_implementation"),
+                    ImplementationIden::Address,
+                )),
             )
             .build_postgres(PostgresQueryBuilder);
         match client.query(sql.as_str(), &values.as_params()).await {
@@ -266,7 +283,7 @@ impl PostgresProject {
             .build_postgres(PostgresQueryBuilder);
 
         match client.execute(sql.as_str(), &values.as_params()).await {
-            Ok(res) => Ok(()),
+            Ok(_res) => Ok(()),
             Err(e) => {
                 error!("while create project {:#?}", e);
                 if e.code().eq(&Some(&SqlState::UNIQUE_VIOLATION)) {

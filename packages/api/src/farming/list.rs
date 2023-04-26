@@ -5,17 +5,36 @@ use carbonable_domain::infrastructure::{
         get_customer_global_farming_data, get_customer_listing_project_data,
         get_unconnected_project_data,
     },
-    view_model::farming::UnconnectedFarmingData,
+    view_model::farming::{FarmingProjectsViewModel, UnconnectedFarmingData},
 };
+use reqwest::Client;
 
 use crate::{
     common::{ApiError, ServerResponse},
     AppDependencies,
 };
 
+async fn aggregate_metadata(
+    mut projects: Vec<FarmingProjectsViewModel>,
+) -> Result<Vec<FarmingProjectsViewModel>, ApiError> {
+    let client = Client::new();
+    for p in projects.iter_mut() {
+        let data = client
+            .get(format!("{}/token", p.uri.uri))
+            .send()
+            .await?
+            .json()
+            .await
+            .expect("failed to parse json");
+        p.uri.data = data;
+    }
+    Ok(projects)
+}
+
 pub async fn farming_list(data: web::Data<AppDependencies>) -> Result<impl Responder, ApiError> {
     let project_model = PostgresFarming::new(data.db_client_pool.clone());
-    let projects = project_model.get_farming_projects().await?;
+    let mut projects = project_model.get_farming_projects().await?;
+    projects = aggregate_metadata(projects).await?;
     Ok(HttpResponse::Ok().json(ServerResponse::Data { data: projects }))
 }
 

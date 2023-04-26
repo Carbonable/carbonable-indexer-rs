@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use actix_web::{web, HttpResponse, Responder};
 use carbonable_domain::{
@@ -7,7 +7,9 @@ use carbonable_domain::{
         flatten,
         postgres::{entity::ErcImplementation, project::PostgresProject},
         starknet::portfolio::{load_erc_3525_portfolio, load_erc_721_portfolio},
-        view_model::portfolio::{ProjectWithMinterAndPaymentViewModel, ProjectWithTokens},
+        view_model::portfolio::{
+            PortfolioAbi, ProjectWithMinterAndPaymentViewModel, ProjectWithTokens,
+        },
     },
 };
 
@@ -37,6 +39,10 @@ async fn aggregate_721_tokens(
         minter_address: project.minter_address,
         tokens,
         total_amount,
+        abi: PortfolioAbi {
+            project: project.abi,
+            minter: project.minter_abi,
+        },
     };
 
     Ok(Some(project))
@@ -65,12 +71,16 @@ async fn aggregate_3525_tokens(
         minter_address: project.minter_address,
         tokens: tokens.into_iter().flatten().collect(),
         total_amount,
+        abi: PortfolioAbi {
+            project: project.abi,
+            minter: project.minter_abi,
+        },
     };
 
     Ok(Some(project))
 }
 
-fn total_amount(unit_price: U256, payment_decimals: U256, amount: U256) -> U256 {
+fn total_amount(unit_price: U256, _payment_decimals: U256, amount: U256) -> U256 {
     // TODO: replace f64 with bigdecimal
     unit_price * amount
 }
@@ -106,7 +116,7 @@ async fn aggregate_tokens_with_project(
 
 #[derive(Serialize)]
 pub struct Global {
-    total: U256,
+    total: bigdecimal::BigDecimal,
 }
 
 #[derive(Serialize)]
@@ -138,7 +148,9 @@ pub async fn get_by_wallet(
 
     Ok(HttpResponse::Ok().json(ServerResponse::Data {
         data: GetByWalletResponse {
-            global: Global { total },
+            global: Global {
+                total: total.to_big_decimal(6),
+            },
             projects: filtered_projects,
             badges: vec![],
         },

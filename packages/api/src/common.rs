@@ -27,6 +27,8 @@ pub enum ApiError {
     PostgresError(#[from] PostgresError),
     #[error(transparent)]
     ModelError(#[from] ModelError),
+    #[error(transparent)]
+    ReqwestError(#[from] reqwest::Error),
 }
 
 impl ResponseError for ApiError {}

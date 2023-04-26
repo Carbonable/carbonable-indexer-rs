@@ -13,8 +13,9 @@ actix-web = { version = "4.3.1", features = ["rustls"] }
 apibara-sdk = { git = "https://github.com/MartianGreed/apibara", branch = "main" }
 apibara-core = { git = "https://github.com/MartianGreed/apibara", branch = "main" }
 async-recursion = "1.0.4"
+anyhow = "1.0.70"
 # Using a fork here
-starknet = { git = "https://github.com/MartianGreed/starknet-rs", branch = "master" }
+starknet = { git = "https://github.com/xJonathanLEI/starknet-rs", branch = "master" }
 # starknet = { path = "../../starknet-rs" }
 bigdecimal = "0.3.0"
 crypto-bigint = { version = "0.4.9", features = ["serde", "alloc"] }
@@ -43,3 +44,4 @@ sea-query-postgres = { version = "0.2.0", features = ["with-json", "with-uuid", 
 sea-orm-migration = { version = "0.11.1", features = ["sqlx-postgres", "runtime-tokio-rustls"] }
 sea-query-binder = { version = "0.3.0", features = ["with-uuid", "with-json", "postgres-array", "with-bigdecimal", "with-time", "runtime-tokio-rustls", "sqlx-postgres"] }
 url = "2.3.1"
+pbjson-types = "0.5.1"

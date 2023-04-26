@@ -1,17 +1,17 @@
+pub mod event_bus;
 pub mod minter;
 pub mod offseter;
 pub mod project;
+pub mod transaction;
 pub mod vester;
 pub mod yielder;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt::Debug};
 
-use deadpool::managed::Manager;
-use deadpool_postgres::{Object, Pool, Transaction};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::infrastructure::postgres::event_source::PostgresStorageManager;
+use crate::infrastructure::postgres::PostgresError;
 
 use self::{
     minter::MinterEvents, offseter::OffseterEvents, project::ProjectEvents, vester::VesterEvents,
@@ -25,6 +25,30 @@ pub struct DomainEvent {
     pub(crate) payload: HashMap<String, String>,
     pub(crate) r#type: Event,
 }
+impl DomainEvent {
+    pub fn with_metadata(mut self, metadata: &BlockMetadata) -> Self {
+        self.metadata
+            .insert("block_hash".to_owned(), metadata.hash.to_string());
+        self.metadata
+            .insert("block_number".to_owned(), metadata.number.to_string());
+        self.metadata
+            .insert("timestamp".to_owned(), metadata.timestamp.to_string());
+        self
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BlockMetadata {
+    pub(crate) hash: String,
+    pub(crate) timestamp: String,
+    pub(crate) number: u64,
+}
+
+impl BlockMetadata {
+    pub fn get_block(&self) -> u64 {
+        self.number
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Event {
@@ -36,70 +60,52 @@ pub enum Event {
 }
 
 #[derive(Debug, Error)]
-pub enum DomainError {}
-
-#[derive(Debug, Error)]
-pub enum EventBusError {
+pub enum DomainError {
     #[error(transparent)]
     PoolError(#[from] deadpool_postgres::PoolError),
     #[error(transparent)]
-    DomainError(#[from] DomainError),
-}
-
-pub struct EventBus<Sm> {
-    pub(crate) db_client_pool: Arc<Pool>,
-    pub(crate) consumers: Vec<Box<dyn Consumer<Sm>>>,
-}
-
-impl EventBus<PostgresStorageManager> {
-    /// Creates a new event bus instance
-    pub fn new(db_client_pool: Arc<Pool>) -> Self {
-        Self {
-            db_client_pool,
-            consumers: vec![],
-        }
-    }
-
-    /// Add event consumer
-    pub fn add_consumer(&mut self, consumer: Box<dyn Consumer<PostgresStorageManager>>) {
-        self.consumers.push(consumer);
-    }
-
-    /// Forward event to consumers.
-    /// Add logic for pre.event and post.event
-    ///
-    /// Create db.tx commit if success
-    pub async fn dispatch(&self, event: DomainEvent) -> Result<(), EventBusError> {
-        let client = self.db_client_pool.get().await?;
-
-        for consumer in &self.consumers {
-            if consumer.can_consume(&event.r#type) {
-                consumer.consume(event.clone()).await?;
-            }
-        }
-
-        Ok(())
-    }
+    TokioError(#[from] tokio_postgres::Error),
+    #[error(transparent)]
+    PostgresError(#[from] PostgresError),
+    #[error("feature not available there")]
+    NotAvailable,
 }
 
 #[async_trait::async_trait]
-pub trait Consumer<Sm>
-where
-    Sm: StorageManager,
-{
-    fn can_consume(&self, e: &Event) -> bool;
-    async fn consume(&self, e: DomainEvent) -> Result<(), DomainError>;
-}
-
-#[async_trait::async_trait]
-pub trait StorageManager {
-    type Client;
-    type Transaction<'a>
+pub trait StorageClientPool {
+    type Client<'a>
     where
         Self: 'a;
 
-    async fn get_last_block(&self) -> Result<(), DomainError>;
-    async fn get_client(&self) -> Self::Client;
-    async fn store_events(&self) -> Result<(), DomainError>;
-    async fn build_transaction(&self) -> Self::Transaction<'_>;
+    async fn get(&self) -> Result<Self::Client<'_>, DomainError>;
+}
+
+/// Implement this trait to enable specific filtering.
+pub trait Filterable: Debug {
+    /// Maps a single `contract_address` to `selector_hash`
+    fn to_filters(&self) -> Vec<(String, String)>;
+
+    /// Tries to find event in current filter.
+    fn get_event(&mut self, contract_address: &str, event_key: &str) -> Option<Event>;
+
+    /// Build filter item from configuration filter
+    fn hydrate_from_file<I>(&mut self, address_list: I) -> &mut Self
+    where
+        I: IntoIterator<Item = HashMap<String, String>>;
+
+    /// Extract from file data
+    fn extract_addresses<I>(&self, contract_addresses: I, keys: &[&str]) -> Vec<String>
+    where
+        I: IntoIterator<Item = HashMap<String, String>>,
+    {
+        let mut addresses = Vec::new();
+        for list in contract_addresses {
+            for (k, addr) in list.iter() {
+                if keys.contains(&k.as_str()) {
+                    addresses.push(addr.to_string());
+                }
+            }
+        }
+        addresses
+    }
 }

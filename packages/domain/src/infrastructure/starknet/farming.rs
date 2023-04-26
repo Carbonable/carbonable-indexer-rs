@@ -31,7 +31,7 @@ use super::{
 };
 
 /// Get cumulated value of tokens in slot for customer
-async fn get_value_of(
+pub async fn get_value_of(
     provider: Arc<JsonRpcClient<HttpTransport>>,
     address: String,
     slot: U256,
@@ -47,7 +47,7 @@ async fn get_value_of(
 
         let value_in_slot = get_value_of_token_in_slot(&provider, &address, &token_id).await?;
 
-        value += value_in_slot.into();
+        value += value_in_slot;
     }
     Ok(value)
 }
@@ -266,11 +266,6 @@ pub async fn get_customer_listing_project_data(
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     let values = [
         (
-            project_data.project_address.to_string(),
-            "balanceOf",
-            vec![FieldElement::from_hex_be(wallet).unwrap()],
-        ),
-        (
             project_data.vester_address.to_string(),
             "releasableOf",
             vec![FieldElement::from_hex_be(wallet).unwrap()],
@@ -299,10 +294,19 @@ pub async fn get_customer_listing_project_data(
 
     let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
 
+    let value_of = get_value_of(
+        provider.clone(),
+        project_data.project_address.to_string(),
+        project_data.project_slot,
+        wallet.to_string(),
+    )
+    .await?;
+
     Ok(CustomerListingProjectData::from((
         data,
         project_data,
         farming_data,
+        value_of,
     )))
 }
 
@@ -319,20 +323,11 @@ pub async fn get_customer_details_project_data(
 
     let apr = get_project_current_apr(snapshots, vestings, total_value)?;
     let mut builder = customer_details_project_data
-        .with_contracts(
-            &project_data.vester_address,
-            &project_data.yielder_address,
-            &project_data.offseter_address,
-        )
+        .with_contracts(&project_data, &farming_data)
         .with_apr(apr);
 
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     let values = [
-        (
-            project_data.project_address.to_string(),
-            "balanceOf",
-            vec![FieldElement::from_hex_be(wallet).unwrap()],
-        ),
         (
             project_data.project_address.to_string(),
             "getCurrentAbsorption",
@@ -380,8 +375,15 @@ pub async fn get_customer_details_project_data(
         ),
     ];
 
+    let value_of = get_value_of(
+        provider.clone(),
+        project_data.project_address.to_string(),
+        project_data.project_slot,
+        wallet.to_string(),
+    )
+    .await?;
     let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
-    builder = builder.compute_blockchain_data(data, &farming_data, &project_data);
+    builder = builder.compute_blockchain_data(data, &farming_data, &project_data, &value_of);
 
     let customer_details_project_data = builder.build();
 
