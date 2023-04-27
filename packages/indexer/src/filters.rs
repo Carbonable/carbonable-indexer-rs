@@ -10,11 +10,12 @@ use carbonable_domain::{
 
 use crate::IndexerError;
 
-/// Configure contract item filter
-fn configure_filter_item<F>(filter: &mut Filter, application_filter: &F)
-where
-    F: Filterable,
-{
+/// Configure apibara stream contract item filter
+/// * `filter` - The filter to configure
+/// * `application_filter` - The application filter to use
+///
+#[allow(clippy::borrowed_box)]
+fn configure_filter_item(filter: &mut Filter, application_filter: &Box<dyn Filterable>) {
     for af in application_filter.to_filters() {
         filter.add_event(|e| {
             e.with_from_address(FieldElement::from_hex(&af.0).unwrap())
@@ -96,11 +97,16 @@ where
 //     configurators
 // }
 
-/// Configure stream filters.
+/// Configure stream filters for apibara
+/// * `app_config` - The application configuration
+/// * `file_path` - The path to the file containing the contract addresses
+/// * `application_filters` - The application filters to use
+/// * last_block_id - The last block id to start from
+///
 pub fn configure_stream_filters<P: AsRef<std::path::Path>>(
     app_config: &Args,
     file_path: P,
-    application_filters: &mut [impl Filterable],
+    application_filters: &mut [Box<dyn Filterable>],
     last_block_id: &u64,
 ) -> Result<Configuration<Filter>, IndexerError> {
     let content = read_data_content(file_path)?;

@@ -7,7 +7,7 @@ use crate::domain::event_source::{BlockMetadata, DomainEvent, Filterable};
 impl DomainEvent {
     pub fn from_starknet_event(
         value: EventWithTransaction,
-        application_filter: &mut [impl Filterable],
+        application_filter: &mut [Box<dyn Filterable>],
     ) -> Self {
         let meta = &value
             .transaction
@@ -42,7 +42,11 @@ impl DomainEvent {
         // Will panic if event is none. Event should be extracted out of application filters
         let mut event = None;
         for filter in application_filter {
-            event = filter.get_event(&from.to_string(), &key.to_string());
+            let found_event = filter.get_event(&from.to_string(), &key.to_string());
+            if found_event.is_some() {
+                event = found_event;
+                continue;
+            }
         }
 
         let mut metadata = HashMap::new();

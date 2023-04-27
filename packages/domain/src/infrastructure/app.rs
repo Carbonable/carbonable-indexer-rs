@@ -17,6 +17,8 @@ pub struct Args {
     pub only_seed: bool,
     #[arg(long, default_value_t = false)]
     pub only_index: bool,
+    #[arg(long, default_value_t = false)]
+    pub force: bool,
 }
 
 #[derive(Error, Debug)]

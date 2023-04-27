@@ -4,7 +4,7 @@ use sea_query::{Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use serde_json::json;
 use time::OffsetDateTime;
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::domain::event_source::BlockMetadata;
 use crate::domain::{
@@ -69,7 +69,10 @@ pub async fn insert_last_domain_event<'a>(
         .build_postgres(PostgresQueryBuilder);
 
     match tx.execute(sql.as_str(), &values.as_params()).await {
-        Ok(_) => Ok(()),
+        Ok(res) => {
+            debug!("event_store.domain_event.create: {:#?}", res);
+            Ok(())
+        }
         Err(e) => {
             error!("event_store.domain_event.create: {:#?}", e);
             Err(PostgresError::from(e))
@@ -108,7 +111,10 @@ pub async fn create_token_for_customer<'a>(
         .build_postgres(PostgresQueryBuilder);
 
     match tx.execute(sql.as_str(), &values.as_params()).await {
-        Ok(_) => Ok(()),
+        Ok(res) => {
+            debug!("project.transfer.create_result: {:#?}", res);
+            Ok(())
+        }
         Err(e) => {
             error!("project.transfer.create: {:#?}", e);
             Err(PostgresError::from(e))
@@ -122,7 +128,7 @@ pub async fn create_token_for_customer<'a>(
 /// * from: [`String`]
 /// * contract_address: [`String`]
 /// * to: [`String`]
-/// * token_id: [`String`]
+/// * token_id: [`U256`]
 ///
 pub async fn update_token_owner<'a>(
     tx: &Transaction<'a>,
@@ -140,9 +146,79 @@ pub async fn update_token_owner<'a>(
         .build_postgres(PostgresQueryBuilder);
 
     match tx.execute(sql.as_str(), &values.as_params()).await {
-        Ok(_) => Ok(()),
+        Ok(res) => {
+            debug!("project.transfer.update: {:#?}", res);
+            Ok(())
+        }
         Err(e) => {
             error!("project.transfer.update: {:#?}", e);
+            Err(PostgresError::from(e))
+        }
+    }
+}
+
+/// From blockchain `TransferValue` event updates database
+///
+/// * tx: [`deadpool_postgres::Object`]
+/// * contract_address: [`String`]
+/// * to: [`U256`]
+/// * token_id: [`U256`]
+///
+pub async fn update_token_value<'a>(
+    tx: &Transaction<'a>,
+    contract_address: &str,
+    token_id: &U256,
+    value: &U256,
+) -> Result<(), PostgresError> {
+    let (sql, values) = Query::update()
+        .table(CustomerTokenIden::Table)
+        .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*token_id))
+        .and_where(Expr::col(CustomerTokenIden::ProjectAddress).eq(contract_address))
+        .values([
+            (CustomerTokenIden::TokenId, token_id.into()),
+            (CustomerTokenIden::Value, value.into()),
+        ])
+        .build_postgres(PostgresQueryBuilder);
+
+    match tx.execute(sql.as_str(), &values.as_params()).await {
+        Ok(res) => {
+            debug!("project.transfer_value.update: {:#?}", res);
+            Ok(())
+        }
+        Err(e) => {
+            error!("project.transfer_value.update: {:#?}", e);
+            Err(PostgresError::from(e))
+        }
+    }
+}
+
+/// From blockchain `SlotChanged` event updates database
+///
+/// * tx: [`deadpool_postgres::Object`]
+/// * contract_address: [`String`]
+/// * token_id: [`U256`]
+/// * slot: [`U256`]
+///
+pub async fn update_token_slot<'a>(
+    tx: &Transaction<'a>,
+    contract_address: &str,
+    token_id: &U256,
+    slot: &U256,
+) -> Result<(), PostgresError> {
+    let (sql, values) = Query::update()
+        .table(CustomerTokenIden::Table)
+        .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*token_id))
+        .and_where(Expr::col(CustomerTokenIden::ProjectAddress).eq(contract_address))
+        .values([(CustomerTokenIden::Slot, slot.into())])
+        .build_postgres(PostgresQueryBuilder);
+
+    match tx.execute(sql.as_str(), &values.as_params()).await {
+        Ok(res) => {
+            debug!("project.transfer_value.update: {:#?}", res);
+            Ok(())
+        }
+        Err(e) => {
+            error!("project.transfer_value.update: {:#?}", e);
             Err(PostgresError::from(e))
         }
     }
