@@ -73,7 +73,10 @@ impl EventBus<Pool, Box<dyn for<'a> Consumer<Transaction<'a>>>> {
 
         for consumer in &self.consumers {
             if consumer.can_consume(&event.r#type) {
-                debug!("Dispatching event: {:?}", &event.id);
+                debug!(
+                    "Dispatching event: {:?} with id : {:?}",
+                    &event.r#type, &event.id
+                );
                 consumer.consume(event, &mut tx).await?;
             }
         }

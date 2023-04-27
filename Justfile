@@ -1,11 +1,13 @@
 alias c := clippy
+default_starting_block := "0"
+default_force := ""
 
 default:
     just --list
 
 # run indexer against against blockchain as data source
-run_indexer:
-	DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ NETWORK=goerli SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 RUST_LOG=info RUST_BACKTRACE=1 cargo run -p carbonable-indexer -- --starting-block 0 --batch-size 10 --only-index
+run_indexer starting_block=default_starting_block force=default_force:
+	DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ NETWORK=goerli SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 RUST_LOG=debug RUST_BACKTRACE=1 cargo run -p carbonable-indexer -- --starting-block {{starting_block}} --batch-size 10 --only-index {{force}}
 
 # seed base data from data directory
 run_seeding:

@@ -6,8 +6,11 @@ use carbonable_domain::{
     domain::{
         event_source::{
             event_bus::{Consumer, EventBus},
-            project::{ProjectFilters, ProjectTransferEventConsumer},
-            BlockMetadata, DomainEvent,
+            project::{
+                ProjectFilters, ProjectSlotChangedEventConsumer, ProjectTransferEventConsumer,
+                ProjectTransferValueEventConsumer,
+            },
+            BlockMetadata, DomainEvent, Filterable,
         },
         Erc3525, Erc721,
     },
@@ -65,18 +68,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if configuration.only_index {
-        let mut filters = [ProjectFilters::new()];
+        let mut filters: [Box<dyn Filterable>; 1] = [Box::new(ProjectFilters::new())];
         let mut last_block_id = configuration.starting_block;
-        let last_event_store_block =
-            get_last_dispatched_block(&db_client_pool, &last_block_id).await?;
-        info!("Starting stream from block : {}", last_event_store_block);
+        if !configuration.force {
+            last_block_id = configuration.starting_block;
+            last_block_id = get_last_dispatched_block(&db_client_pool, &last_block_id).await?;
+        }
+        info!("Starting stream from block : {}", last_block_id);
 
-        let stream_config = configure_stream_filters(
-            &configuration,
-            &file_path,
-            &mut filters,
-            &last_event_store_block,
-        )?;
+        let stream_config =
+            configure_stream_filters(&configuration, &file_path, &mut filters, &last_block_id)?;
 
         let (mut stream, configuration_handle) = ClientBuilder::<Filter, Block>::default()
             .connect(Uri::from_static("https://goerli.starknet.a5a.ch"))
@@ -88,7 +89,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             db_client_pool.clone(),
         );
         event_bus.add_consumer(Box::new(ProjectTransferEventConsumer::new()));
-        // event_bus.add_consumer(Box::new(ProjectTransferValueEventConsumer::new()));
+        event_bus.add_consumer(Box::new(ProjectTransferValueEventConsumer::new()));
+        event_bus.add_consumer(Box::new(ProjectSlotChangedEventConsumer::new()));
 
         loop {
             match stream.try_next().await {

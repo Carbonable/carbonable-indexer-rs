@@ -53,6 +53,11 @@ impl From<crypto_bigint::U256> for U256 {
         U256(value)
     }
 }
+impl From<apibara_core::starknet::v1alpha2::FieldElement> for U256 {
+    fn from(value: apibara_core::starknet::v1alpha2::FieldElement) -> Self {
+        U256(crypto_bigint::U256::from_be_bytes(value.to_bytes()))
+    }
+}
 impl From<U256> for crypto_bigint::U256 {
     fn from(value: U256) -> Self {
         value.0
@@ -66,6 +71,11 @@ impl From<U256> for u64 {
 
 impl From<U256> for sea_query::Value {
     fn from(value: U256) -> Self {
+        sea_query::Value::Bytes(Some(Box::new(value.0.to_be_bytes().to_vec())))
+    }
+}
+impl From<&U256> for sea_query::Value {
+    fn from(value: &U256) -> Self {
         sea_query::Value::Bytes(Some(Box::new(value.0.to_be_bytes().to_vec())))
     }
 }

@@ -1,18 +1,20 @@
 use crate::{
     domain::crypto::U256,
-    infrastructure::postgres::event_source::{create_token_for_customer, update_token_owner},
+    infrastructure::postgres::event_source::{
+        create_token_for_customer, update_token_owner, update_token_slot, update_token_value,
+    },
 };
 use apibara_core::starknet::v1alpha2::FieldElement;
 use crypto_bigint::Encoding;
 use deadpool_postgres::Transaction;
 use serde::{Deserialize, Serialize};
 use starknet::macros::selector;
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    sync::Mutex,
-};
+use std::{collections::HashMap, sync::Mutex};
+use tracing::error;
 
-use super::{event_bus::Consumer, DomainError, DomainEvent, Event, Filterable};
+use super::{
+    event_bus::Consumer, get_event, to_filters, DomainError, DomainEvent, Event, Filterable,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProjectEvents {
@@ -51,32 +53,15 @@ impl Default for ProjectFilters {
 
 impl Filterable for ProjectFilters {
     fn to_filters(&self) -> Vec<(String, String)> {
-        self.filters
-            .iter()
-            .flat_map(|(k, v)| {
-                v.iter()
-                    .map(|(selector_hash, _)| (k.to_owned(), selector_hash.to_owned()))
-            })
-            .collect()
+        to_filters(&self.filters)
     }
 
     fn get_event(&mut self, contract_address: &str, event_key: &str) -> Option<Event> {
-        match &self.filters.entry(contract_address.to_string()) {
-            Entry::Occupied(e) => e
-                .get()
-                .iter()
-                .find(|(k, _)| &event_key.to_string() == k)
-                .map(|(_, ev)| ev.clone()),
-            Entry::Vacant(_) => None,
-        }
+        get_event(&mut self.filters, contract_address, event_key)
     }
 
-    fn hydrate_from_file<I>(&mut self, address_list: I) -> &mut Self
-    where
-        I: IntoIterator<Item = HashMap<String, String>>,
-    {
-        let contracts =
-            self.extract_addresses(address_list.into_iter(), &["project", "project_3525"]);
+    fn hydrate_from_file(&mut self, address_list: Vec<HashMap<String, String>>) {
+        let contracts = self.extract_addresses(address_list, &["project", "project_3525"]);
         self.contracts = contracts;
         for contract in self.contracts.iter() {
             self.filters.insert(
@@ -86,16 +71,20 @@ impl Filterable for ProjectFilters {
                         FieldElement::from_bytes(&selector!("Transfer").to_bytes_be()).to_string(),
                         Event::Project(ProjectEvents::Transfer),
                     ),
-                    // (
-                    //     FieldElement::from_bytes(&selector!("TransferValue").to_bytes_be())
-                    //         .to_string(),
-                    //     Event::Project(ProjectEvents::TransferValue),
-                    // ),
+                    (
+                        FieldElement::from_bytes(&selector!("TransferValue").to_bytes_be())
+                            .to_string(),
+                        Event::Project(ProjectEvents::TransferValue),
+                    ),
+                    (
+                        FieldElement::from_bytes(&selector!("SlotChanged").to_bytes_be())
+                            .to_string(),
+                        Event::Project(ProjectEvents::SlotChanged),
+                    ),
                 ]
                 .to_vec(),
             );
         }
-        self
     }
 }
 
@@ -163,51 +152,73 @@ impl Consumer<Mutex<HashMap<String, Vec<DomainEvent>>>> for ProjectTransferEvent
     }
 }
 
-// #[derive(Default, Debug)]
-// pub struct ProjectTransferValueEventConsumer {}
-//
-// impl ProjectTransferValueEventConsumer {
-//     pub fn new() -> Self {
-//         Self {}
-//     }
-// }
-//
-// #[async_trait::async_trait]
-// impl Consumer<PostgresStorageClientPool, Transaction<'_>> for ProjectTransferValueEventConsumer {
-//     fn can_consume(&self, event: &Event, _storage_manager: &PostgresStorageClientPool) -> bool {
-//         match event {
-//             Event::Project(ProjectEvents::TransferValue) => true,
-//             _ => false,
-//         }
-//     }
-//
-//     async fn consume(
-//         &self,
-//         event: &DomainEvent,
-//         storage_manager: &Transaction,
-//     ) -> Result<(), DomainError> {
-//         // let client = storage_manager.get().await?;
-//
-//         // println!("{:#?}", client);
-//         println!("{:#?}", event);
-//         todo!()
-//     }
-// }
-//
-// #[async_trait::async_trait]
-// impl Consumer<InMemoryDomainClientPool, ()> for ProjectTransferValueEventConsumer {
-//     fn can_consume(&self, event: &Event, _storage_manager: &InMemoryDomainClientPool) -> bool {
-//         match event {
-//             Event::Project(ProjectEvents::TransferValue) => true,
-//             _ => false,
-//         }
-//     }
-//
-//     async fn consume(&self, event: &DomainEvent, storage_manager: &()) -> Result<(), DomainError> {
-//         println!(
-//             "ProjectTransferValueEventConsumer handling value : {:#?}",
-//             event
-//         );
-//         Ok(())
-//     }
-// }
+#[derive(Default, Debug)]
+pub struct ProjectTransferValueEventConsumer {}
+
+impl ProjectTransferValueEventConsumer {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+#[async_trait::async_trait]
+impl Consumer<Transaction<'_>> for ProjectTransferValueEventConsumer {
+    fn can_consume(&self, event: &Event) -> bool {
+        matches!(event, Event::Project(ProjectEvents::TransferValue))
+    }
+
+    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
+        let from_address = event.metadata.get("from_address").unwrap();
+        let from_token_id =
+            U256::from(FieldElement::from_hex(event.payload.get("0").unwrap()).unwrap());
+        let to_token_id =
+            U256::from(FieldElement::from_hex(event.payload.get("2").unwrap()).unwrap());
+        let value = U256::from(FieldElement::from_hex(event.payload.get("4").unwrap()).unwrap());
+
+        // new token created from empty address
+        if U256::from(0u64) == from_token_id {
+            return Ok(update_token_value(txn, &from_address, &to_token_id, &value).await?);
+        }
+
+        // remove value from customer_token where project_address = from_address && token_id
+        // = old_token_id
+        Ok(())
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct ProjectSlotChangedEventConsumer {}
+
+impl ProjectSlotChangedEventConsumer {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+#[async_trait::async_trait]
+impl Consumer<Transaction<'_>> for ProjectSlotChangedEventConsumer {
+    fn can_consume(&self, event: &Event) -> bool {
+        error!("{:?}", &event);
+        println!(
+            "{:#?}",
+            matches!(event, Event::Project(ProjectEvents::SlotChanged)),
+        );
+        matches!(event, Event::Project(ProjectEvents::SlotChanged))
+    }
+
+    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
+        // token_id is unique per contract AND per slot.
+        let from_address = event.metadata.get("from_address").unwrap();
+        let token_id = U256::from(FieldElement::from_hex(event.payload.get("0").unwrap()).unwrap());
+        let old_slot = U256::from(FieldElement::from_hex(event.payload.get("2").unwrap()).unwrap());
+        let slot = U256::from(FieldElement::from_hex(event.payload.get("4").unwrap()).unwrap());
+
+        // token created from slot 0
+        // if token is moved from a slot to another, it means to us that slot is moved from
+        // a project to another one which is not possible at the moment.
+        if U256::from(0u64) == old_slot {
+            return Ok(update_token_slot(txn, &from_address, &token_id, &slot).await?);
+        }
+        Ok(())
+    }
+}

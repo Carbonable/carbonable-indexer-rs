@@ -6,7 +6,10 @@ pub mod transaction;
 pub mod vester;
 pub mod yielder;
 
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fmt::Debug,
+};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -89,15 +92,14 @@ pub trait Filterable: Debug {
     fn get_event(&mut self, contract_address: &str, event_key: &str) -> Option<Event>;
 
     /// Build filter item from configuration filter
-    fn hydrate_from_file<I>(&mut self, address_list: I) -> &mut Self
-    where
-        I: IntoIterator<Item = HashMap<String, String>>;
+    fn hydrate_from_file(&mut self, address_list: Vec<HashMap<String, String>>);
 
     /// Extract from file data
-    fn extract_addresses<I>(&self, contract_addresses: I, keys: &[&str]) -> Vec<String>
-    where
-        I: IntoIterator<Item = HashMap<String, String>>,
-    {
+    fn extract_addresses(
+        &self,
+        contract_addresses: Vec<HashMap<String, String>>,
+        keys: &[&str],
+    ) -> Vec<String> {
         let mut addresses = Vec::new();
         for list in contract_addresses {
             for (k, addr) in list.iter() {
@@ -107,5 +109,38 @@ pub trait Filterable: Debug {
             }
         }
         addresses
+    }
+}
+
+/// Common function for [`Filterable::to_filters`] trait implementation
+/// * filters: &HashMap<contract_address, Vec<(selector_hash, Event)>>
+///
+pub(crate) fn to_filters(filters: &HashMap<String, Vec<(String, Event)>>) -> Vec<(String, String)> {
+    filters
+        .iter()
+        .flat_map(|(k, v)| {
+            v.iter()
+                .map(|(selector_hash, _)| (k.to_owned(), selector_hash.to_owned()))
+        })
+        .collect()
+}
+
+/// Common function for [`Filterable::get_event`] trait implementation
+/// * filters: &mut HashMap<contract_address, Vec<(selector_hash, Event)>>
+/// * contract_address: &str
+/// * event_key: &str
+///
+pub(crate) fn get_event(
+    filters: &mut HashMap<String, Vec<(String, Event)>>,
+    contract_address: &str,
+    event_key: &str,
+) -> Option<Event> {
+    match filters.entry(contract_address.to_string()) {
+        Entry::Occupied(e) => e
+            .get()
+            .iter()
+            .find(|(k, _)| &event_key.to_string() == k)
+            .map(|(_, ev)| ev.clone()),
+        Entry::Vacant(_) => None,
     }
 }
