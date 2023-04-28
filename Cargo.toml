@@ -38,6 +38,7 @@ sea-query = { version = "0.28.3", features = ["thread-safe", "backend-postgres",
 time = { version = "0.3.20", features = ["serde", "formatting", "macros"] }
 deadpool-postgres = "0.10.5"
 postgres-types = { version = "0.2.4", features = ["derive"] }
+postgres-protocol =  "0.6.5"
 tokio-postgres = "0.7.7"
 deadpool = "0.9.5"
 sea-query-postgres = { version = "0.2.0", features = ["with-json", "with-uuid", "postgres-array", "with-bigdecimal", "with-time"] }

@@ -62,6 +62,88 @@ pub enum Event {
     Vester(VesterEvents),
 }
 
+impl From<Event> for &str {
+    fn from(value: Event) -> Self {
+        match value {
+            Event::Project(v) => match v {
+                ProjectEvents::Upgraded => "project.upgraded",
+                ProjectEvents::AbsorptionUpdate => "project.absorption_update",
+                ProjectEvents::Transfer => "project.transfer",
+                ProjectEvents::TransferValue => "project.transfer_value",
+                ProjectEvents::Approval => "project.approval",
+                ProjectEvents::ApprovalValue => "project.approval_value",
+                ProjectEvents::ApprovalForAll => "project.approval_for_all",
+                ProjectEvents::SlotChanged => "project.slot_changed",
+                ProjectEvents::MetadataUpdate => "project.metadata_update",
+                ProjectEvents::BatchMetadataUpdate => "project.batch_metadata_update",
+            },
+            Event::Minter(v) => match v {
+                MinterEvents::Upgraded => "minter.upgraded",
+                MinterEvents::Airdrop => "minter.airdrop",
+                MinterEvents::Buy => "minter.buy",
+                MinterEvents::SoldOut => "minter.sold_out",
+                MinterEvents::Migration => "minter.migration",
+                MinterEvents::PreSaleOpen => "minter.pre_sale_open",
+                MinterEvents::PreSaleClosed => "minter.pre_sale_closed",
+                MinterEvents::PublicSaleOpen => "minter.public_sale_open",
+                MinterEvents::PublicSaleClosed => "minter.public_sale_closed",
+            },
+            Event::Offseter(v) => match v {
+                OffseterEvents::Upgraded => "offseter.upgraded",
+                OffseterEvents::Deposit => "offseter.deposit",
+                OffseterEvents::Withdraw => "offseter.withdraw",
+                OffseterEvents::Claim => "offseter.claim",
+            },
+            Event::Yielder(v) => match v {
+                YielderEvents::Upgraded => "yielder.upgraded",
+                YielderEvents::Deposit => "yielder.deposit",
+                YielderEvents::Withdraw => "yielder.withdraw",
+                YielderEvents::Snapshot => "yielder.snapshot",
+                YielderEvents::Vesting => "yielder.vesting",
+            },
+            Event::Vester(v) => match v {
+                VesterEvents::Upgraded => "vester.upgraded",
+            },
+        }
+    }
+}
+impl From<&str> for Event {
+    fn from(value: &str) -> Self {
+        match value {
+            "project.upgraded" => Event::Project(ProjectEvents::Upgraded),
+            "project.absorption_update" => Event::Project(ProjectEvents::AbsorptionUpdate),
+            "project.transfer" => Event::Project(ProjectEvents::Transfer),
+            "project.transfer_value" => Event::Project(ProjectEvents::TransferValue),
+            "project.approval" => Event::Project(ProjectEvents::Approval),
+            "project.approval_value" => Event::Project(ProjectEvents::ApprovalValue),
+            "project.approval_for_all" => Event::Project(ProjectEvents::ApprovalForAll),
+            "project.slot_changed" => Event::Project(ProjectEvents::SlotChanged),
+            "project.metadata_update" => Event::Project(ProjectEvents::MetadataUpdate),
+            "project.batch_metadata_update" => Event::Project(ProjectEvents::BatchMetadataUpdate),
+            "minter.upgraded" => Event::Minter(MinterEvents::Upgraded),
+            "minter.airdrop" => Event::Minter(MinterEvents::Airdrop),
+            "minter.buy" => Event::Minter(MinterEvents::Buy),
+            "minter.sold_out" => Event::Minter(MinterEvents::SoldOut),
+            "minter.migration" => Event::Minter(MinterEvents::Migration),
+            "minter.pre_sale_open" => Event::Minter(MinterEvents::PreSaleOpen),
+            "minter.pre_sale_closed" => Event::Minter(MinterEvents::PreSaleClosed),
+            "minter.public_sale_open" => Event::Minter(MinterEvents::PublicSaleOpen),
+            "minter.public_sale_closed" => Event::Minter(MinterEvents::PublicSaleClosed),
+            "offseter.upgraded" => Event::Offseter(OffseterEvents::Upgraded),
+            "offseter.deposit" => Event::Offseter(OffseterEvents::Deposit),
+            "offseter.withdraw" => Event::Offseter(OffseterEvents::Withdraw),
+            "offseter.claim" => Event::Offseter(OffseterEvents::Claim),
+            "yielder.upgraded" => Event::Yielder(YielderEvents::Upgraded),
+            "yielder.deposit" => Event::Yielder(YielderEvents::Deposit),
+            "yielder.withdraw" => Event::Yielder(YielderEvents::Withdraw),
+            "yielder.snapshot" => Event::Yielder(YielderEvents::Snapshot),
+            "yielder.vesting" => Event::Yielder(YielderEvents::Vesting),
+            "vester.upgraded" => Event::Vester(VesterEvents::Upgraded),
+            &_ => panic!("Unknown event {}", value),
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum DomainError {
     #[error(transparent)]

@@ -10,6 +10,10 @@ use carbonable_domain::{
                 ProjectFilters, ProjectSlotChangedEventConsumer, ProjectTransferEventConsumer,
                 ProjectTransferValueEventConsumer,
             },
+            yielder::{
+                YieldFilters, YielderDepositEventConsumer, YielderVestingEventConsumer,
+                YielderWithdrawEventConsumer,
+            },
             BlockMetadata, DomainEvent, Filterable,
         },
         Erc3525, Erc721,
@@ -68,7 +72,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if configuration.only_index {
-        let mut filters: [Box<dyn Filterable>; 1] = [Box::new(ProjectFilters::new())];
+        let mut filters: [Box<dyn Filterable>; 2] = [
+            Box::new(ProjectFilters::new()),
+            Box::new(YieldFilters::new()),
+        ];
         let mut last_block_id = configuration.starting_block;
         if !configuration.force {
             last_block_id = configuration.starting_block;
@@ -88,9 +95,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut event_bus = EventBus::<Pool, Box<dyn for<'a> Consumer<Transaction<'a>>>>::new(
             db_client_pool.clone(),
         );
+
+        // Project
         event_bus.add_consumer(Box::new(ProjectTransferEventConsumer::new()));
         event_bus.add_consumer(Box::new(ProjectTransferValueEventConsumer::new()));
         event_bus.add_consumer(Box::new(ProjectSlotChangedEventConsumer::new()));
+        // Yielder
+        event_bus.add_consumer(Box::new(YielderDepositEventConsumer::new()));
+        event_bus.add_consumer(Box::new(YielderVestingEventConsumer::new()));
+        event_bus.add_consumer(Box::new(YielderWithdrawEventConsumer::new()));
 
         loop {
             match stream.try_next().await {

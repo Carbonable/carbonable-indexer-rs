@@ -10,7 +10,6 @@ use deadpool_postgres::Transaction;
 use serde::{Deserialize, Serialize};
 use starknet::macros::selector;
 use std::{collections::HashMap, sync::Mutex};
-use tracing::error;
 
 use super::{
     event_bus::Consumer, get_event, to_filters, DomainError, DomainEvent, Event, Filterable,
@@ -30,6 +29,7 @@ pub enum ProjectEvents {
     BatchMetadataUpdate,
 }
 
+/// Base struct for [`Project`] to enable [`Filterable`] behaviour
 #[derive(Debug)]
 pub struct ProjectFilters {
     contracts: Vec<String>,
@@ -51,6 +51,7 @@ impl Default for ProjectFilters {
     }
 }
 
+/// Add [`Filterable`] behaviour on [`Project`]
 impl Filterable for ProjectFilters {
     fn to_filters(&self) -> Vec<(String, String)> {
         to_filters(&self.filters)
@@ -88,9 +89,9 @@ impl Filterable for ProjectFilters {
     }
 }
 
+/// Consuming [`Transfer`] event emitted from [`Project`] on chain
 #[derive(Default, Debug)]
 pub struct ProjectTransferEventConsumer {}
-
 impl ProjectTransferEventConsumer {
     pub fn new() -> Self {
         Self {}
@@ -152,9 +153,9 @@ impl Consumer<Mutex<HashMap<String, Vec<DomainEvent>>>> for ProjectTransferEvent
     }
 }
 
+/// Consuming [`TransferValue`] event emitted from [`Project`] on chain
 #[derive(Default, Debug)]
 pub struct ProjectTransferValueEventConsumer {}
-
 impl ProjectTransferValueEventConsumer {
     pub fn new() -> Self {
         Self {}
@@ -177,7 +178,7 @@ impl Consumer<Transaction<'_>> for ProjectTransferValueEventConsumer {
 
         // new token created from empty address
         if U256::from(0u64) == from_token_id {
-            return Ok(update_token_value(txn, &from_address, &to_token_id, &value).await?);
+            return Ok(update_token_value(txn, from_address, &to_token_id, &value).await?);
         }
 
         // remove value from customer_token where project_address = from_address && token_id
@@ -186,9 +187,9 @@ impl Consumer<Transaction<'_>> for ProjectTransferValueEventConsumer {
     }
 }
 
+/// Consuming [`SlotChanged`] event emitted from [`Project`] on chain
 #[derive(Default, Debug)]
 pub struct ProjectSlotChangedEventConsumer {}
-
 impl ProjectSlotChangedEventConsumer {
     pub fn new() -> Self {
         Self {}
@@ -198,11 +199,6 @@ impl ProjectSlotChangedEventConsumer {
 #[async_trait::async_trait]
 impl Consumer<Transaction<'_>> for ProjectSlotChangedEventConsumer {
     fn can_consume(&self, event: &Event) -> bool {
-        error!("{:?}", &event);
-        println!(
-            "{:#?}",
-            matches!(event, Event::Project(ProjectEvents::SlotChanged)),
-        );
         matches!(event, Event::Project(ProjectEvents::SlotChanged))
     }
 
@@ -217,7 +213,7 @@ impl Consumer<Transaction<'_>> for ProjectSlotChangedEventConsumer {
         // if token is moved from a slot to another, it means to us that slot is moved from
         // a project to another one which is not possible at the moment.
         if U256::from(0u64) == old_slot {
-            return Ok(update_token_slot(txn, &from_address, &token_id, &slot).await?);
+            return Ok(update_token_slot(txn, from_address, &token_id, &slot).await?);
         }
         Ok(())
     }

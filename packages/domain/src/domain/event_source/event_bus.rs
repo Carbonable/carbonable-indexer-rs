@@ -17,20 +17,6 @@ pub enum EventBusError {
     TokioError(#[from] tokio_postgres::Error),
 }
 
-// #[async_trait::async_trait]
-// pub trait DomainEventBus<C, Txm>
-// where
-//     C: Consumer<Txm>,
-//     Txm: TransactionManager,
-// {
-//     fn add_consumer(&mut self, consumer: C);
-//     async fn dispatch(
-//         &self,
-//         event: &DomainEvent,
-//         metadata: &BlockMetadata,
-//     ) -> Result<(), DomainError>;
-// }
-
 #[async_trait::async_trait]
 pub trait Consumer<Txn>: Debug
 where
@@ -55,6 +41,8 @@ impl EventBus<Pool, Box<dyn for<'a> Consumer<Transaction<'a>>>> {
     }
 
     /// Add event consumer
+    /// * `consumer` - [`Consumer`]
+    ///
     pub fn add_consumer(&mut self, consumer: Box<dyn for<'a> Consumer<Transaction<'a>>>) {
         self.consumers.push(consumer);
     }
@@ -63,6 +51,8 @@ impl EventBus<Pool, Box<dyn for<'a> Consumer<Transaction<'a>>>> {
     /// Add logic for pre.event and post.event
     ///
     /// Create db.tx commit if success
+    /// * `event` - [`DomainEvent`]
+    /// * `event` - [`BlockMetadata`]
     pub async fn dispatch(
         &self,
         event: &DomainEvent,
@@ -87,48 +77,3 @@ impl EventBus<Pool, Box<dyn for<'a> Consumer<Transaction<'a>>>> {
         Ok(())
     }
 }
-
-// TODO: Make this working by implementing a comprehensible trait
-// Traits implemented there are not flexible enough to make this work out
-//
-// impl
-//     EventBus<
-//         Mutex<HashMap<String, Vec<DomainEvent>>>,
-//         Box<dyn Consumer<Mutex<HashMap<String, Vec<DomainEvent>>>>>,
-//     >
-// {
-//     pub fn new() -> Self {
-//         Self {
-//             client_pool: Arc::new(Mutex::new(HashMap::new())),
-//             consumers: vec![],
-//         }
-//     }
-//
-//     /// Add event consumer
-//     pub fn add_consumer(
-//         &mut self,
-//         consumer: Box<dyn Consumer<Mutex<HashMap<String, Vec<DomainEvent>>>>>,
-//     ) {
-//         self.consumers.push(consumer);
-//     }
-//
-//     /// Forward event to consumers.
-//     /// Add logic for pre.event and post.event
-//     ///
-//     /// Create db.tx commit if success
-//     pub async fn dispatch(
-//         &self,
-//         event: &DomainEvent,
-//         metadata: &BlockMetadata,
-//     ) -> Result<(), DomainError> {
-//         let mut client = self.client_pool.clone();
-//         for consumer in &self.consumers {
-//             if consumer.can_consume(&event.r#type) {
-//                 debug!("Dispatching event: {:?}", &event.id);
-//                 consumer.consume(&event, &mut client).await?;
-//             }
-//         }
-//
-//         Ok(())
-//     }
-// }
