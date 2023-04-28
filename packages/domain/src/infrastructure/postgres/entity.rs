@@ -1,12 +1,12 @@
 use std::fmt::Display;
 
 use bigdecimal::BigDecimal;
-use postgres_types::{FromSql, ToSql};
+use postgres_types::{accepts, to_sql_checked, FromSql, ToSql};
 use sea_query::{enum_def, Iden};
 use time::PrimitiveDateTime;
 use uuid::Uuid;
 
-use crate::domain::crypto::U256;
+use crate::domain::{crypto::U256, event_source::Event};
 
 #[derive(Debug, ToSql, Iden)]
 pub enum ErcImplementation {
@@ -52,6 +52,43 @@ impl From<ErcImplementation> for &str {
             ErcImplementation::Erc3525 => "erc_3525",
             ErcImplementation::Enum => panic!("Not a valid erc implementation"),
         }
+    }
+}
+
+impl<'a> FromSql<'a> for Event {
+    fn from_sql(
+        _ty: &postgres_types::Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let val = std::str::from_utf8(raw)?;
+        Ok(Event::from(val))
+    }
+
+    accepts!(VARCHAR);
+}
+
+impl ToSql for Event {
+    fn to_sql(
+        &self,
+        _ty: &postgres_types::Type,
+        out: &mut postgres_types::private::BytesMut,
+    ) -> Result<postgres_types::IsNull, Box<dyn std::error::Error + Sync + Send>>
+    where
+        Self: Sized,
+    {
+        let s: &str = self.clone().into();
+        postgres_protocol::types::text_to_sql(s, out);
+        Ok(postgres_types::IsNull::No)
+    }
+
+    accepts!(VARCHAR);
+    to_sql_checked!();
+}
+impl From<Event> for sea_query::Value {
+    fn from(value: Event) -> Self {
+        sea_query::Value::String(Some(Box::new(String::from(<Event as Into<&str>>::into(
+            value,
+        )))))
     }
 }
 
@@ -360,5 +397,25 @@ pub struct EventStore {
     pub block_hash: String,
     pub metadata: serde_json::Value,
     pub payload: serde_json::Value,
+    pub r#type: Event,
     pub recorded_at: PrimitiveDateTime,
+}
+
+#[enum_def]
+pub struct GlobalYield {
+    pub id: Uuid,
+    pub yielder_address: String,
+    pub deposited: U256,
+    pub claimed: U256,
+    pub claimable: U256,
+}
+
+#[enum_def]
+pub struct CustomerYield {
+    pub id: Uuid,
+    pub address: String,
+    pub yielder_address: String,
+    pub deposited: U256,
+    pub claimed: U256,
+    pub claimable: U256,
 }

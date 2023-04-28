@@ -971,6 +971,7 @@ dependencies = [
  "futures",
  "futures-util",
  "ipfs-api-backend-hyper",
+ "postgres-protocol",
  "postgres-types",
  "reqwest",
  "sea-orm-migration",

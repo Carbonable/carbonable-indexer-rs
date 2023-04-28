@@ -4,6 +4,7 @@ use sea_query::{Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use serde_json::json;
 use time::OffsetDateTime;
+use tokio_postgres::error::SqlState;
 use tracing::{debug, error};
 
 use crate::domain::event_source::BlockMetadata;
@@ -55,6 +56,7 @@ pub async fn insert_last_domain_event<'a>(
             EventStoreIden::BlockHash,
             EventStoreIden::Metadata,
             EventStoreIden::Payload,
+            EventStoreIden::RType,
             EventStoreIden::RecordedAt,
         ])
         .values([
@@ -64,6 +66,7 @@ pub async fn insert_last_domain_event<'a>(
             metadata.hash.clone().into(),
             sea_query::Value::Json(Some(Box::new(json!(&event.metadata)))).into(),
             sea_query::Value::Json(Some(Box::new(json!(&event.payload)))).into(),
+            event.r#type.clone().into(),
             OffsetDateTime::now_utc().into(),
         ])?
         .build_postgres(PostgresQueryBuilder);
@@ -74,6 +77,10 @@ pub async fn insert_last_domain_event<'a>(
             Ok(())
         }
         Err(e) => {
+            if e.code().eq(&Some(&SqlState::UNIQUE_VIOLATION)) {
+                debug!("event_store.domain_event.create: ignored due to duplication");
+                return Ok(());
+            }
             error!("event_store.domain_event.create: {:#?}", e);
             Err(PostgresError::from(e))
         }

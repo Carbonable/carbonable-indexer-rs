@@ -29,6 +29,7 @@ sea-query.workspace = true
 time.workspace = true
 deadpool-postgres.workspace = true
 postgres-types.workspace = true
+postgres-protocol.workspace = true
 tokio-postgres.workspace = true
 deadpool.workspace = true
 sea-query-postgres.workspace = true

@@ -85,6 +85,7 @@ pub fn get_starknet_provider(env: StarknetEnv) -> Result<SequencerGatewayProvide
     })
 }
 
+/// Get rpc client from given [`StarknetEnv`]
 fn get_starknet_rpc_client(
     env: StarknetEnv,
 ) -> Result<JsonRpcClient<HttpTransport>, SequencerError> {
@@ -94,6 +95,7 @@ fn get_starknet_rpc_client(
     )?)))
 }
 
+/// Get sequencer from given [`StarknetEnv`] variable
 fn get_sequencer_domain(env: &StarknetEnv) -> Result<String, SequencerError> {
     if let Ok(domain) = std::env::var("SEQUENCER_DOMAIN") {
         let subdomain = match env {

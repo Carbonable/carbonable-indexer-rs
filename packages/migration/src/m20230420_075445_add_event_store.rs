@@ -18,7 +18,12 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(EventStoreIden::EventId).string().not_null())
+                    .col(
+                        ColumnDef::new(EventStoreIden::EventId)
+                            .string()
+                            .unique_key()
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(EventStoreIden::BlockNumber)
                             .binary()
@@ -31,6 +36,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(EventStoreIden::Metadata).json().null())
                     .col(ColumnDef::new(EventStoreIden::Payload).json().null())
+                    .col(ColumnDef::new(EventStoreIden::RType).string().not_null())
                     .col(
                         ColumnDef::new(EventStoreIden::RecordedAt)
                             .date_time()
