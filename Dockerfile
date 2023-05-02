@@ -1,8 +1,8 @@
-FROM --platform=linux/amd64 rust:1.68-slim-bullseye as builder
+FROM rust:1.69-slim-bullseye as builder
 
-# Add unstable to packages list to install specific protobuf-compiler version
-RUN echo "deb http://deb.debian.org/debian unstable main" >> /etc/apt/sources.list
-RUN apt update && apt install pkg-config openssl libssl-dev curl unzip protobuf-compiler=3.21.12-3 -y
+RUN echo "deb http://deb.debian.org/debian unstable main" >> /etc/apt/sources.list \
+    && apt update \
+    && apt install --yes pkg-config openssl libssl-dev curl unzip protobuf-compiler=3.21.12-3
 
 WORKDIR /srv/www
 COPY . .
@@ -17,21 +17,22 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     objcopy --compress-debug-sections target/release/carbonable-indexer ./carbonable-indexer; \
     objcopy --compress-debug-sections target/release/carbonable-migration ./carbonable-migration
 
-# FROM --platform=linux/amd64 debian:bullseye-slim as production-runtime
-#
-# RUN set -eux; \
-#     export DEBIAN_FRONTEND=noninteractive; \
-#     apt update; \
-#     apt install --yes --no-install-recommends pkg-config bind9-dnsutils iputils-ping iproute2 curl ca-certificates openssl libssl-dev; \
-#     apt clean autoclean; \
-#     apt autoremove --yes; \
-#     rm -rf /var/lib/{apt,dpkg,cache,log}/; \
-#     echo "Installed base utils!"
-#
-# WORKDIR /srv/www
+FROM debian:bullseye-slim as production-runtime
 
-# COPY --from=builder /srv/www/target/release/carbonable-api ./carbonable-api
-# COPY --from=builder /srv/www/target/release/carbonable-indexer ./carbonable-indexer
-# COPY --from=builder /srv/www/target/release/carbonable-migration ./carbonable-migration
+RUN set -eux; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    echo "deb http://deb.debian.org/debian unstable main" >> /etc/apt/sources.list; \
+    apt update; \
+    apt install --yes pkg-config ca-certificates openssl libssl-dev protobuf-compiler=3.21.12-3; \
+    apt clean autoclean; \
+    apt autoremove --yes; \
+    rm -rf /var/lib/apt/* /var/lib/dpkg/* /var/lib/cache/* /var/lib/log/*; \
+    echo "Installed base utils!"
+
+WORKDIR /srv/www
+
+COPY --from=builder /srv/www/carbonable-api ./carbonable-api
+COPY --from=builder /srv/www/carbonable-indexer ./carbonable-indexer
+COPY --from=builder /srv/www/carbonable-migration ./carbonable-migration
 
 CMD ["./carbonable-api"]
