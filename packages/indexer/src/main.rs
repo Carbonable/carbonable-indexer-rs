@@ -40,7 +40,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let configuration = configure_application().await?;
     let db_client_pool = Arc::new(get_connection(None).await?);
-    println!("{:#?}", configuration.network);
     let file_path = format!("./data/{}.data.json", configuration.network);
 
     if configuration.only_seed {

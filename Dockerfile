@@ -31,6 +31,7 @@ RUN set -eux; \
 
 WORKDIR /srv/www
 
+COPY --from=builder /srv/www/data ./data
 COPY --from=builder /srv/www/carbonable-api ./carbonable-api
 COPY --from=builder /srv/www/carbonable-indexer ./carbonable-indexer
 COPY --from=builder /srv/www/carbonable-migration ./carbonable-migration

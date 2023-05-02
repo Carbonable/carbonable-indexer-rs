@@ -21,7 +21,8 @@ pub struct Metadata {
     pub description: String,
     pub image: String,
     pub external_url: String,
-    pub banner_image_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub banner_image_url: Option<String>,
     pub youtube_url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributes: Option<Vec<Attribute>>,
