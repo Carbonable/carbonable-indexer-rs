@@ -40,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let configuration = configure_application().await?;
     let db_client_pool = Arc::new(get_connection(None).await?);
+    println!("{:#?}", configuration.network);
     let file_path = format!("./data/{}.data.json", configuration.network);
 
     if configuration.only_seed {
@@ -87,7 +88,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             configure_stream_filters(&configuration, &file_path, &mut filters, &last_block_id)?;
 
         let (mut stream, configuration_handle) = ClientBuilder::<Filter, Block>::default()
-            .connect(Uri::from_static("https://goerli.starknet.a5a.ch"))
+            .with_bearer_token(configuration.apibara_token)
+            .connect(Uri::from_static(Box::leak(
+                configuration.apibara_uri.into_boxed_str(),
+            )))
             .await?;
 
         configuration_handle.send(stream_config.clone()).await?;

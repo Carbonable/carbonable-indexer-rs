@@ -3,7 +3,7 @@ use starknet::core::types::FieldElement;
 use crate::{
     domain::Contract,
     infrastructure::{
-        postgres::{find_or_create_implementation, find_or_create_uri_721, PostgresModels},
+        postgres::{find_or_create_badge_uri, find_or_create_implementation, PostgresModels},
         starknet::{
             badge::BadgeModel,
             model::{StarknetModel, StarknetValueResolver},
@@ -63,7 +63,7 @@ where
             implementation_hash.as_str(),
         )
         .await?;
-        let uri = find_or_create_uri_721(
+        let uri = find_or_create_badge_uri(
             db_models.uri.clone(),
             address.as_str(),
             project_uri.as_str(),

@@ -3,7 +3,7 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = "carbonable-testnet-indexer"
+app = "carbonable-mainnet-indexer"
 primary_region = "cdg"
 kill_signal = "SIGINT"
 kill_timeout = "5s"

@@ -23,7 +23,8 @@ pub struct Metadata {
     pub external_url: String,
     pub banner_image_url: String,
     pub youtube_url: String,
-    pub attributes: Vec<Attribute>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<Vec<Attribute>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -80,6 +81,46 @@ impl StarknetModel<Erc3525Metadata> for UriModel<Erc3525> {
         let metadata: Erc3525Metadata = self
             .client
             .get(self.ipfs_link.clone())
+            .send()
+            .await?
+            .json()
+            .await
+            .expect("failed to parse metadata");
+
+        Ok(metadata)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BadgeMetadata {
+    pub name: String,
+    pub description: String,
+    pub image: String,
+    pub external_link: String,
+    pub banner_image_url: String,
+}
+
+pub struct BadgeUriModel {
+    client: Arc<Client>,
+    ipfs_link: String,
+}
+impl BadgeUriModel {
+    pub fn new(ipfs_link: String) -> Result<Self, ModelError> {
+        Ok(Self {
+            client: Arc::new(Client::new()),
+            ipfs_link,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl StarknetModel<BadgeMetadata> for BadgeUriModel {
+    async fn load(&self) -> Result<BadgeMetadata, ModelError> {
+        let gateway = std::env::var("GATEWAY")?;
+        let ipfs_uri = self.ipfs_link.replace("ipfs://", &gateway);
+        let metadata: BadgeMetadata = self
+            .client
+            .get(ipfs_uri)
             .send()
             .await?
             .json()

@@ -2,6 +2,8 @@ use deadpool_postgres::Pool;
 use sea_query::{PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use std::{collections::HashMap, sync::Arc};
+use tokio_postgres::error::SqlState;
+use tracing::error;
 use uuid::Uuid;
 
 use crate::infrastructure::starknet::model::{StarknetValue, StarknetValueResolver};
@@ -53,7 +55,15 @@ impl PostgresBadge {
                 uri_id.into(),
             ])?
             .build_postgres(PostgresQueryBuilder);
-        let _res = client.execute(sql.as_str(), &values.as_params()).await?;
-        Ok(())
+        match client.execute(sql.as_str(), &values.as_params()).await {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                error!("while create badge {:#?}", e);
+                if e.code().eq(&Some(&SqlState::UNIQUE_VIOLATION)) {
+                    return Ok(());
+                }
+                Err(e.into())
+            }
+        }
     }
 }

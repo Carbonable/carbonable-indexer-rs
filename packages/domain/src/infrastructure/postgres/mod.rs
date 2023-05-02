@@ -47,7 +47,7 @@ use super::{
         get_proxy_abi,
         model::ModelError,
         payment::PaymentModel,
-        uri::{Erc3525Metadata, Metadata, UriModel},
+        uri::{BadgeMetadata, BadgeUriModel, Erc3525Metadata, Metadata, UriModel},
     },
 };
 
@@ -241,6 +241,29 @@ where
                     _ => Err(e),
                 },
             }
+        }
+    }
+}
+
+/// Fetches ipfs metadata from [`contractURI`] method from [`address`]
+/// * db_models: [`PostgresModels`]
+/// * address: [`&str`] Blockchain contract address
+/// * badge_uri: [`&str`] Badge ipfs uri fetched from blockchain
+///
+pub async fn find_or_create_badge_uri(
+    db_model: Arc<PostgresUri>,
+    address: &str,
+    badge_uri: &str,
+) -> Result<Uri, PostgresError> {
+    match db_model.find_by_uri(address).await? {
+        Some(u) => Ok(u),
+        None => {
+            let uri_model = BadgeUriModel::new(badge_uri.to_string())?;
+            let metadata: BadgeMetadata = uri_model.load().await?;
+
+            Ok(db_model
+                .create(badge_uri, address, serde_json::to_value(&metadata)?)
+                .await?)
         }
     }
 }
