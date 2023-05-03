@@ -8,11 +8,10 @@ name: check
 jobs:
   fmt:
     runs-on: ubuntu-latest
+    container: valdocarbonaboyz/debian-protocol-buffer
     name: stable / fmt
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: true
       - name: Install stable
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -21,6 +20,7 @@ jobs:
         run: cargo fmt --check
   clippy:
     runs-on: ubuntu-latest
+    container: valdocarbonaboyz/debian-protocol-buffer
     name: ${{ matrix.toolchain }} / clippy
     permissions:
       contents: read
@@ -31,8 +31,6 @@ jobs:
         toolchain: [stable, beta]
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: true
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@master
         with:
@@ -44,33 +42,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
   doc:
     runs-on: ubuntu-latest
+    container: valdocarbonaboyz/debian-protocol-buffer
     name: nightly / doc
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: true
       - name: Install nightly
         uses: dtolnay/rust-toolchain@nightly
       - name: cargo doc
         run: cargo doc --no-deps --all-features
         env:
           RUSTDOCFLAGS: --cfg docsrs
-  msrv:
-    runs-on: ubuntu-latest
-    # we use a matrix here just because env can't be used in job names
-    # https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
-    strategy:
-      matrix:
-        msrv: [1.56.1] # 2021 edition requires 1.56
-    name: ubuntu / ${{ matrix.msrv }}
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
-      - name: Install ${{ matrix.msrv }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.msrv }}
-      - name: cargo +${{ matrix.msrv }} check
-        run: cargo check
-

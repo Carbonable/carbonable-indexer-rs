@@ -1,8 +1,7 @@
-FROM rust:1.69-slim-bullseye as builder
+FROM valdocarbonaboyz/debian-protocol-buffer:latest as builder
 
-RUN echo "deb http://deb.debian.org/debian unstable main" >> /etc/apt/sources.list \
-    && apt update \
-    && apt install --yes pkg-config openssl libssl-dev curl unzip protobuf-compiler=3.21.12-3
+RUN apt update \
+    && apt install --yes pkg-config curl unzip 
 
 WORKDIR /srv/www
 COPY . .
