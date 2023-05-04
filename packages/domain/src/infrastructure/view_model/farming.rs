@@ -9,6 +9,8 @@ use crate::{
     infrastructure::starknet::model::{StarknetValue, StarknetValueResolver},
 };
 
+use super::customer::CustomerToken;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UriViewModel {
     pub uri: String,
@@ -41,6 +43,7 @@ impl From<tokio_postgres::Row> for FarmingProjectsViewModel {
     }
 }
 
+#[derive(Debug)]
 pub struct CustomerGlobalDataForComputation {
     pub id: uuid::Uuid,
     pub unit_price: U256,
@@ -329,6 +332,7 @@ pub struct Allocation {
     r#yield: HumanComprehensibleU256<U256>,
     offseted: HumanComprehensibleU256<U256>,
     undeposited: HumanComprehensibleU256<U256>,
+    tokens: Vec<CustomerToken>,
 }
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct CustomerDetailsProjectData {
@@ -372,6 +376,7 @@ impl CustomerDetailsProjectData {
         project: &CompleteFarmingData,
         farming_data: &CustomerGlobalDataForComputation,
         value_of: &U256,
+        customer_tokens: Vec<CustomerToken>,
     ) -> &mut Self {
         let current_absorption: U256 = StarknetValue::new(data[0].clone()).resolve("u256").into();
         let offseter_deposited_of: U256 =
@@ -437,8 +442,11 @@ impl CustomerDetailsProjectData {
             total: Mass::<U256>::from_blockchain(claimed_of, project.ton_equivalent).into(),
         };
 
-        self.allocation.total =
-            SlotValue::from_blockchain(*value_of, project.value_decimals).into();
+        self.allocation.total = SlotValue::from_blockchain(
+            *value_of + (yielder_deposited_of + offseter_deposited_of),
+            project.value_decimals,
+        )
+        .into();
         self.allocation.r#yield = Erc20::from_blockchain(
             yielder_deposited_of,
             project.payment_decimals,
@@ -447,11 +455,9 @@ impl CustomerDetailsProjectData {
         .into();
         self.allocation.offseted =
             Mass::<U256>::from_blockchain(offseter_deposited_of, project.ton_equivalent).into();
-        self.allocation.undeposited = SlotValue::from_blockchain(
-            *value_of - (yielder_deposited_of + offseter_deposited_of),
-            project.value_decimals,
-        )
-        .into();
+        self.allocation.undeposited =
+            SlotValue::from_blockchain(*value_of, project.value_decimals).into();
+        self.allocation.tokens = customer_tokens;
 
         self.ton_equivalent = project.ton_equivalent.to_big_decimal(0);
         self.payment_decimals = project.payment_decimals.into();

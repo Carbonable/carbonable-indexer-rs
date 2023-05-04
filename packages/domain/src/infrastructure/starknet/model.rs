@@ -46,6 +46,8 @@ pub enum ModelError {
     JoinError(#[from] JoinError),
     #[error("invalid data set on field {0}")]
     InvalidDataSet(String),
+    #[error("failed to fetch customer tokens from db")]
+    FailedToFetchCustomerTokens,
 }
 
 #[async_trait::async_trait]
@@ -265,7 +267,7 @@ impl StarknetValueResolver for StarknetValue {
                 resolved
             }
             "u64" => {
-                let int = u64::try_from(self.inner.pop().unwrap()).unwrap();
+                let int = u64::try_from(self.inner.first().unwrap().to_owned()).unwrap();
                 let resolved = StarknetResolvedValue::Unsigned(int);
                 self.resolved = Some(resolved.clone());
                 resolved

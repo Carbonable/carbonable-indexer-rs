@@ -119,12 +119,15 @@ impl PostgresProject {
                 ProjectIden::ErcImplementation,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
-            .and_where(Expr::col(ProjectIden::Slot).eq(*slot))
+            .and_where(Expr::col(ProjectIden::Slot).eq(U256::from(*slot)))
             .build_postgres(PostgresQueryBuilder);
 
         match client.query_one(sql.as_str(), &values.as_params()).await {
             Ok(res) => Ok(Some(res.into())),
-            Err(_) => Ok(None),
+            Err(e) => {
+                error!("{:#?}", e);
+                Ok(None)
+            }
         }
     }
 

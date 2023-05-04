@@ -1,4 +1,5 @@
 pub mod badge;
+pub mod customer;
 pub mod entity;
 pub mod event_source;
 pub mod event_store;
@@ -164,14 +165,23 @@ pub async fn find_or_create_3525_project(
         Some(p) => Ok(p),
         None => {
             let seeder = ProjectSeeder::<Erc3525>::new(db_models.clone());
-            match seeder.seed(address.to_string()).await {
-                Ok(_p) => match db_models.project.find_by_address(address).await? {
+            match seeder.seed_from_slot(address.to_string(), slot).await {
+                Ok(_p) => match db_models
+                    .project
+                    .find_by_address_and_slot(address, slot)
+                    .await?
+                {
                     Some(p) => Ok(p),
                     None => {
                         error!("project not created yet");
-                        while db_models.project.find_by_address(address).await?.is_none() {
+                        while db_models
+                            .project
+                            .find_by_address_and_slot(address, slot)
+                            .await?
+                            .is_none()
+                        {
                             tokio::time::sleep(Duration::from_secs(10)).await;
-                            let _seed_res = seeder.seed(address.to_string()).await;
+                            let _seed_res = seeder.seed_from_slot(address.to_string(), slot).await;
                         }
 
                         Ok(db_models

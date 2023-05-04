@@ -189,7 +189,7 @@ impl StarknetModel<Vec<HashMap<String, StarknetValue>>> for ProjectModel<Erc3525
     }
 }
 
-fn get_slug_from_uri(external_url: &str) -> String {
+pub(crate) fn get_slug_from_uri(external_url: &str) -> String {
     let url = external_url.trim_end_matches('/');
     url.split('/')
         .last()

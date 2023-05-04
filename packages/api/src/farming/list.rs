@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, Responder};
 use carbonable_domain::infrastructure::{
-    postgres::farming::PostgresFarming,
+    postgres::{customer::PostgresCustomer, farming::PostgresFarming},
     starknet::farming::{
         get_customer_global_farming_data, get_customer_listing_project_data,
         get_unconnected_project_data,
@@ -45,9 +45,11 @@ pub async fn global(
     let wallet = wallet_param.into_inner();
 
     let project_model = PostgresFarming::new(data.db_client_pool.clone());
+    let customer_model = PostgresCustomer::new(data.db_client_pool.clone());
     let data = project_model.get_data_for_farming(None).await?;
 
-    let customer_global_data = get_customer_global_farming_data(wallet, data).await?;
+    let customer_global_data =
+        get_customer_global_farming_data(wallet, data, &customer_model).await?;
 
     Ok(HttpResponse::Ok().json(ServerResponse::Data {
         data: customer_global_data,
@@ -117,6 +119,7 @@ pub async fn connected(
 ) -> Result<impl Responder, ApiError> {
     let (wallet, slug) = route_params.into_inner();
     let project_model = PostgresFarming::new(data.db_client_pool.clone());
+    let customer_model = PostgresCustomer::new(data.db_client_pool.clone());
 
     let mut project_data = project_model
         .get_data_for_farming(Some(slug.to_string()))
@@ -144,9 +147,12 @@ pub async fn connected(
         ));
     }
     let project = project_data.pop().unwrap();
+    let customer_tokens = customer_model
+        .get_customer_tokens(&wallet, &project.project_address)
+        .await?;
 
     let customer_project_data =
-        get_customer_listing_project_data(project, farming_data, &wallet).await?;
+        get_customer_listing_project_data(project, farming_data, &wallet, customer_tokens).await?;
 
     Ok(HttpResponse::Ok().json(ServerResponse::Data {
         data: customer_project_data,

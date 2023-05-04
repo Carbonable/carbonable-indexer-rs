@@ -9,11 +9,17 @@ use time::OffsetDateTime;
 
 use crate::infrastructure::{
     flatten,
-    postgres::entity::{Snapshot, Vesting},
-    view_model::farming::{
-        CompleteFarmingData, CustomerDetailsProjectData, CustomerGlobalData,
-        CustomerGlobalDataForComputation, CustomerListingProjectData, ProjectApr, ProjectStatus,
-        UnconnectedFarmingData,
+    postgres::{
+        customer::PostgresCustomer,
+        entity::{Snapshot, Vesting},
+    },
+    view_model::{
+        customer::CustomerToken,
+        farming::{
+            CompleteFarmingData, CustomerDetailsProjectData, CustomerGlobalData,
+            CustomerGlobalDataForComputation, CustomerListingProjectData, ProjectApr,
+            ProjectStatus, UnconnectedFarmingData,
+        },
     },
 };
 use crate::{
@@ -33,12 +39,21 @@ use super::{
 /// Get cumulated value of tokens in slot for customer
 pub async fn get_value_of(
     provider: Arc<JsonRpcClient<HttpTransport>>,
+    customer_tokens: &[CustomerToken],
     address: String,
     slot: U256,
     wallet: String,
 ) -> Result<U256, ModelError> {
     let balance = get_balance_of(&provider.clone(), &address.clone(), &wallet.clone()).await?;
     let mut value = U256::zero();
+    let token_len = u64::try_from(customer_tokens.len()).unwrap();
+    if balance == token_len {
+        for t in customer_tokens {
+            value += t.value;
+        }
+        return Ok(value);
+    }
+
     for token_index in 0..balance {
         let token_id = get_token_id(&provider, &address, &wallet, &token_index).await?;
         if get_slot_of(&provider, &address, &token_id).await? != slot {
@@ -92,9 +107,11 @@ async fn customer_farming_data(
     provider: Arc<JsonRpcClient<HttpTransport>>,
     wallet: String,
     data: CustomerGlobalDataForComputation,
+    customer_tokens: Vec<CustomerToken>,
 ) -> Result<CustomerGlobalData, ModelError> {
     let value = get_value_of(
         provider.clone(),
+        &customer_tokens,
         data.project_address.to_string(),
         data.project_slot,
         wallet.clone(),
@@ -129,14 +146,20 @@ async fn customer_farming_data(
 pub async fn get_customer_global_farming_data(
     wallet: String,
     addresses: Vec<CustomerGlobalDataForComputation>,
+    customer_model: &PostgresCustomer,
 ) -> Result<DisplayableCustomerGlobalData, ModelError> {
     let mut handles = vec![];
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     for data in addresses.into_iter() {
         let provider = provider.clone();
         let wallet = wallet.to_string();
-        let handle =
-            tokio::spawn(async move { customer_farming_data(provider, wallet, data).await });
+        let customer_tokens = customer_model
+            .get_customer_tokens(&wallet, &data.project_address)
+            .await
+            .map_err(|_| ModelError::FailedToFetchCustomerTokens)?;
+        let handle = tokio::spawn(async move {
+            customer_farming_data(provider, wallet, data, customer_tokens).await
+        });
         handles.push(flatten(handle));
     }
     let customer_global_data = futures::future::try_join_all(handles).await;
@@ -262,6 +285,7 @@ pub async fn get_customer_listing_project_data(
     project_data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
     wallet: &str,
+    customer_tokens: Vec<CustomerToken>,
 ) -> Result<CustomerListingProjectData, ModelError> {
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     let values = [
@@ -296,6 +320,7 @@ pub async fn get_customer_listing_project_data(
 
     let value_of = get_value_of(
         provider.clone(),
+        &customer_tokens,
         project_data.project_address.to_string(),
         project_data.project_slot,
         wallet.to_string(),
@@ -318,6 +343,7 @@ pub async fn get_customer_details_project_data(
     snapshots: Vec<Snapshot>,
     vestings: Vec<Vesting>,
     total_value: U256,
+    customer_tokens: Vec<CustomerToken>,
 ) -> Result<CustomerDetailsProjectData, ModelError> {
     let mut customer_details_project_data = CustomerDetailsProjectData::default();
 
@@ -377,13 +403,20 @@ pub async fn get_customer_details_project_data(
 
     let value_of = get_value_of(
         provider.clone(),
+        &customer_tokens,
         project_data.project_address.to_string(),
         project_data.project_slot,
         wallet.to_string(),
     )
     .await?;
     let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
-    builder = builder.compute_blockchain_data(data, &farming_data, &project_data, &value_of);
+    builder = builder.compute_blockchain_data(
+        data,
+        &farming_data,
+        &project_data,
+        &value_of,
+        customer_tokens,
+    );
 
     let customer_details_project_data = builder.build();
 
