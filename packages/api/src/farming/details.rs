@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse, Responder};
 use carbonable_domain::infrastructure::{
     postgres::{customer::PostgresCustomer, farming::PostgresFarming},
-    starknet::farming::get_customer_details_project_data,
+    starknet::{ensure_starknet_wallet, farming::get_customer_details_project_data},
     view_model::farming::UnconnectedFarmingData,
 };
 
@@ -14,7 +14,8 @@ pub async fn project_details(
     route_params: web::Path<(String, String)>,
     data: web::Data<AppDependencies>,
 ) -> Result<impl Responder, ApiError> {
-    let (wallet, slug) = route_params.into_inner();
+    let (mut wallet, slug) = route_params.into_inner();
+    ensure_starknet_wallet(&mut wallet);
     let project_model = PostgresFarming::new(data.db_client_pool.clone());
     let customer_token_model = PostgresCustomer::new(data.db_client_pool.clone());
 

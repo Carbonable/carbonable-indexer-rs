@@ -6,7 +6,10 @@ use carbonable_domain::{
     infrastructure::{
         flatten,
         postgres::{entity::ErcImplementation, project::PostgresProject},
-        starknet::portfolio::{load_erc_3525_portfolio, load_erc_721_portfolio},
+        starknet::{
+            ensure_starknet_wallet,
+            portfolio::{load_erc_3525_portfolio, load_erc_721_portfolio},
+        },
         view_model::portfolio::{
             PortfolioAbi, ProjectWithMinterAndPaymentViewModel, ProjectWithTokens,
         },
@@ -129,7 +132,8 @@ pub async fn get_by_wallet(
     data: web::Data<AppDependencies>,
     wallet_param: web::Path<String>,
 ) -> Result<impl Responder, ApiError> {
-    let wallet = wallet_param.into_inner();
+    let mut wallet = wallet_param.into_inner();
+    ensure_starknet_wallet(&mut wallet);
 
     let project_model = PostgresProject::new(data.db_client_pool.clone());
     let projects_data = project_model

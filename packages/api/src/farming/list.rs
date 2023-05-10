@@ -1,9 +1,12 @@
 use actix_web::{web, HttpResponse, Responder};
 use carbonable_domain::infrastructure::{
     postgres::{customer::PostgresCustomer, farming::PostgresFarming},
-    starknet::farming::{
-        get_customer_global_farming_data, get_customer_listing_project_data,
-        get_unconnected_project_data,
+    starknet::{
+        ensure_starknet_wallet,
+        farming::{
+            get_customer_global_farming_data, get_customer_listing_project_data,
+            get_unconnected_project_data,
+        },
     },
     view_model::farming::{FarmingProjectsViewModel, UnconnectedFarmingData},
 };
@@ -42,7 +45,8 @@ pub async fn global(
     wallet_param: web::Path<String>,
     data: web::Data<AppDependencies>,
 ) -> Result<impl Responder, ApiError> {
-    let wallet = wallet_param.into_inner();
+    let mut wallet = wallet_param.into_inner();
+    ensure_starknet_wallet(&mut wallet);
 
     let project_model = PostgresFarming::new(data.db_client_pool.clone());
     let customer_model = PostgresCustomer::new(data.db_client_pool.clone());
@@ -115,7 +119,8 @@ pub async fn connected(
     route_params: web::Path<(String, String)>,
     data: web::Data<AppDependencies>,
 ) -> Result<impl Responder, ApiError> {
-    let (wallet, slug) = route_params.into_inner();
+    let (mut wallet, slug) = route_params.into_inner();
+    ensure_starknet_wallet(&mut wallet);
     let project_model = PostgresFarming::new(data.db_client_pool.clone());
     let customer_model = PostgresCustomer::new(data.db_client_pool.clone());
 

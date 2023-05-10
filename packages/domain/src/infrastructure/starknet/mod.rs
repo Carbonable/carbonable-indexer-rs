@@ -55,6 +55,15 @@ impl From<String> for StarknetEnv {
     }
 }
 
+/// Ensure provided wallet address is 66 char len
+/// * wallet_address - [`&mut String`] The wallet address.
+///
+pub fn ensure_starknet_wallet(wallet_address: &mut String) {
+    if 65 == wallet_address.len() {
+        *wallet_address = format!("0x0{}", &wallet_address[2..]);
+    }
+}
+
 /// Get starknet provider base on "NETWORK" environment variable
 /// get_starknet_provider_from_env();
 pub fn get_starknet_provider_from_env() -> Result<SequencerGatewayProvider, SequencerError> {
