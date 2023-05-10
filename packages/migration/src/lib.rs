@@ -4,6 +4,7 @@ mod m20220101_000001_create_table;
 mod m20230420_072545_add_customer_tokens;
 mod m20230420_075445_add_event_store;
 mod m20230427_150756_add_yielder_event_source;
+mod m20230510_153033_add_sale_date;
 
 pub struct Migrator;
 
@@ -15,6 +16,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20230420_072545_add_customer_tokens::Migration),
             Box::new(m20230420_075445_add_event_store::Migration),
             Box::new(m20230427_150756_add_yielder_event_source::Migration),
+            Box::new(m20230510_153033_add_sale_date::Migration),
         ]
     }
 }

@@ -11,11 +11,11 @@ pub struct UriViewModel {
 
 #[derive(Serialize, Deserialize)]
 pub struct Project {
-    id: Uuid,
-    address: String,
-    name: String,
-    slug: String,
-    uri: UriViewModel,
+    pub(crate) id: Uuid,
+    pub(crate) address: String,
+    pub(crate) name: String,
+    pub(crate) slug: String,
+    pub(crate) uri: UriViewModel,
 }
 
 #[derive(Serialize, Deserialize)]

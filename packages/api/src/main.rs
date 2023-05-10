@@ -12,6 +12,7 @@ use tracing::info;
 
 pub mod common;
 pub mod farming;
+pub mod launchpad;
 pub mod portfolio;
 pub mod project;
 
@@ -81,6 +82,10 @@ async fn main() -> std::io::Result<()> {
                         "/details/{wallet}/{slug}",
                         web::get().to(farming::details::project_details),
                     ),
+            )
+            .service(
+                web::scope("/launchpad")
+                    .route("/list", web::get().to(launchpad::list::lauchpad_list)),
             )
     })
     .bind(("0.0.0.0", 8080))?
