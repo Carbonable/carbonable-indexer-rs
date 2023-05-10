@@ -5,7 +5,7 @@ use crate::{
     infrastructure::{
         postgres::{
             find_or_create_3525_project, find_or_create_implementation, find_or_create_project,
-            find_or_create_vester, PostgresModels,
+            PostgresModels,
         },
         starknet::{
             model::{StarknetModel, StarknetValueResolver},
@@ -54,14 +54,8 @@ impl Seeder for YielderSeeder<Erc721> {
             .expect("should have carbonableProjectAddress")
             .resolve("address")
             .into();
-        let vester_address: String = data
-            .get_mut("getCarbonableVesterAddress")
-            .expect("should have carbonableVesterAddress")
-            .resolve("address")
-            .into();
 
         let project = find_or_create_project(db_models.clone(), &project_address).await?;
-        let vester = find_or_create_vester(db_models.clone(), &vester_address).await?;
         let implementation = find_or_create_implementation(
             db_models.implementation.clone(),
             yielder_model.provider,
@@ -72,13 +66,7 @@ impl Seeder for YielderSeeder<Erc721> {
 
         let _yielder = db_models
             .yielder
-            .create(
-                &address,
-                data,
-                Some(project.id),
-                Some(vester.id),
-                Some(implementation.id),
-            )
+            .create(&address, data, Some(project.id), Some(implementation.id))
             .await?;
 
         Ok(address)
@@ -108,11 +96,6 @@ impl Seeder for YielderSeeder<Erc3525> {
             .expect("should have carbonableProjectAddress")
             .resolve("address")
             .into();
-        let vester_address: String = data
-            .get_mut("getCarbonableVesterAddress")
-            .expect("should have carbonableVesterAddress")
-            .resolve("address")
-            .into();
         let slot: u64 = data
             .get_mut("getCarbonableProjectSlot")
             .expect("should have getCarbonableProjectSlot")
@@ -121,7 +104,6 @@ impl Seeder for YielderSeeder<Erc3525> {
 
         let project =
             find_or_create_3525_project(db_models.clone(), &project_address, &slot).await?;
-        let vester = find_or_create_vester(db_models.clone(), &vester_address).await?;
         let implementation = find_or_create_implementation(
             db_models.implementation.clone(),
             yielder_model.provider,
@@ -132,13 +114,7 @@ impl Seeder for YielderSeeder<Erc3525> {
 
         let _yielder = db_models
             .yielder
-            .create(
-                &address,
-                data,
-                Some(project.id),
-                Some(vester.id),
-                Some(implementation.id),
-            )
+            .create(&address, data, Some(project.id), Some(implementation.id))
             .await?;
 
         Ok(address)

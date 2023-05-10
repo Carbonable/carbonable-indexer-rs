@@ -143,7 +143,9 @@ impl Seeder for ProjectSeeder<Erc3525> {
     }
 
     fn can_process(&self, seeder_type: String) -> bool {
-        "project_3525" == seeder_type
+        // seeding is done with minter.
+        // but field is still required because based on the same file
+        "DONTSEEDWITHTHESEDATA." == seeder_type
     }
 }
 

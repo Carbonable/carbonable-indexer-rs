@@ -3,7 +3,6 @@ pub mod minter;
 pub mod offseter;
 pub mod project;
 pub mod transaction;
-pub mod vester;
 pub mod yielder;
 
 use std::{
@@ -13,12 +12,12 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use time::OffsetDateTime;
 
 use crate::infrastructure::postgres::PostgresError;
 
 use self::{
-    minter::MinterEvents, offseter::OffseterEvents, project::ProjectEvents, vester::VesterEvents,
-    yielder::YielderEvents,
+    minter::MinterEvents, offseter::OffseterEvents, project::ProjectEvents, yielder::YielderEvents,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -43,7 +42,7 @@ impl DomainEvent {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlockMetadata {
     pub(crate) hash: String,
-    pub(crate) timestamp: String,
+    pub(crate) timestamp: OffsetDateTime,
     pub(crate) number: u64,
 }
 
@@ -59,7 +58,6 @@ pub enum Event {
     Minter(MinterEvents),
     Offseter(OffseterEvents),
     Yielder(YielderEvents),
-    Vester(VesterEvents),
 }
 
 impl From<Event> for &str {
@@ -96,13 +94,11 @@ impl From<Event> for &str {
             },
             Event::Yielder(v) => match v {
                 YielderEvents::Upgraded => "yielder.upgraded",
+                YielderEvents::Claim => "yielder.claim",
                 YielderEvents::Deposit => "yielder.deposit",
                 YielderEvents::Withdraw => "yielder.withdraw",
                 YielderEvents::Snapshot => "yielder.snapshot",
-                YielderEvents::Vesting => "yielder.vesting",
-            },
-            Event::Vester(v) => match v {
-                VesterEvents::Upgraded => "vester.upgraded",
+                YielderEvents::Provision => "yielder.provision",
             },
         }
     }
@@ -133,12 +129,12 @@ impl From<&str> for Event {
             "offseter.deposit" => Event::Offseter(OffseterEvents::Deposit),
             "offseter.withdraw" => Event::Offseter(OffseterEvents::Withdraw),
             "offseter.claim" => Event::Offseter(OffseterEvents::Claim),
+            "yielder.claim" => Event::Yielder(YielderEvents::Claim),
             "yielder.upgraded" => Event::Yielder(YielderEvents::Upgraded),
             "yielder.deposit" => Event::Yielder(YielderEvents::Deposit),
             "yielder.withdraw" => Event::Yielder(YielderEvents::Withdraw),
             "yielder.snapshot" => Event::Yielder(YielderEvents::Snapshot),
-            "yielder.vesting" => Event::Yielder(YielderEvents::Vesting),
-            "vester.upgraded" => Event::Vester(VesterEvents::Upgraded),
+            "yielder.provision" => Event::Yielder(YielderEvents::Provision),
             &_ => panic!("Unknown event {}", value),
         }
     }

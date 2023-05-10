@@ -1,4 +1,4 @@
-use crate::domain::crypto::U256;
+use crate::domain::{crypto::U256, SlotValue};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
@@ -8,7 +8,16 @@ pub struct CustomerToken {
     pub slot: U256,
     pub token_id: U256,
     pub value: U256,
-    pub value_decimals: U256,
+    pub value_decimals: Option<U256>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CustomerTokenWithSlotValue {
+    pub wallet: String,
+    pub project_address: String,
+    pub slot: U256,
+    pub token_id: U256,
+    pub value: SlotValue,
 }
 
 impl From<tokio_postgres::Row> for CustomerToken {

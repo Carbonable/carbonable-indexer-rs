@@ -2,7 +2,6 @@ pub mod badge;
 pub mod minter;
 pub mod offseter;
 pub mod project;
-pub mod vester;
 pub mod yielder;
 
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
@@ -11,7 +10,7 @@ use crate::infrastructure::{flatten, postgres::PostgresError as InfraPostgresErr
 use starknet::providers::{ProviderError, SequencerGatewayProviderError};
 
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error};
 
 use super::starknet::model::ModelError;
 
@@ -87,7 +86,10 @@ impl DataSeeder<SqlSeederManager> {
 
         match futures::future::try_join_all(seeds).await {
             Ok(_r) => Ok(()),
-            Err(e) => Err(e),
+            Err(e) => {
+                error!("{:#?}", e);
+                Err(e)
+            }
         }
     }
 }

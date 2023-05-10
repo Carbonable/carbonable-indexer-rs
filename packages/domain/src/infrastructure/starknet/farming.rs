@@ -9,10 +9,7 @@ use time::OffsetDateTime;
 
 use crate::infrastructure::{
     flatten,
-    postgres::{
-        customer::PostgresCustomer,
-        entity::{Snapshot, Vesting},
-    },
+    postgres::{customer::PostgresCustomer, entity::Snapshot},
     view_model::{
         customer::CustomerToken,
         farming::{
@@ -171,22 +168,19 @@ pub async fn get_customer_global_farming_data(
 }
 
 /// Calculates project APR base on :
+/// TODO: Update APR calculation with latest provision. Everything about vesting was commented out
+/// in this PR.
 ///
 fn get_project_current_apr(
     snapshots: Vec<Snapshot>,
-    vestings: Vec<Vesting>,
     total_value: U256,
 ) -> Result<ProjectApr, ModelError> {
-    if snapshots.is_empty() || vestings.is_empty() {
+    if snapshots.is_empty() {
         return Ok(ProjectApr::None);
     }
-    let last_vesting = match vestings.last() {
-        Some(v) => v,
-        None => return Err(ModelError::InvalidDataSet("vestings".to_string())),
-    };
     let snapshot = match snapshots
         .iter()
-        .filter(|s| s.time < last_vesting.time)
+        // .filter(|s| s.time < last_vesting.time)
         .last()
     {
         Some(s) => s,
@@ -194,7 +188,7 @@ fn get_project_current_apr(
     };
     let diff_time = snapshot.time - snapshot.previous_time;
     let apr = U256(crypto_bigint::U256::from_u8(100))
-        * last_vesting.amount
+        // * last_vesting.amount
         * (U256(crypto_bigint::U256::from_u16(365))
             * U256(crypto_bigint::U256::from_u8(24))
             * U256(crypto_bigint::U256::from_u32(3600)))
@@ -207,9 +201,7 @@ fn get_project_current_apr(
 /// Get project status
 fn get_project_status(farming_data: &CompleteFarmingData) -> ProjectStatus {
     if farming_data.times.is_empty() && farming_data.absorptions.is_empty()
-        || (farming_data.yielder_address.is_none()
-            || farming_data.offseter_address.is_none()
-            || farming_data.vester_address.is_none())
+        || (farming_data.yielder_address.is_none() || farming_data.offseter_address.is_none())
     {
         return ProjectStatus::Upcoming;
     }
@@ -225,12 +217,11 @@ pub async fn get_unconnected_project_data(
     data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
     snapshots: Vec<Snapshot>,
-    vestings: Vec<Vesting>,
     total_value: U256,
 ) -> Result<UnconnectedFarmingData, ModelError> {
     // times, absorptions, ton_equivalent, unit_price, payment_decimals
 
-    let apr = get_project_current_apr(snapshots, vestings, total_value)?;
+    let apr = get_project_current_apr(snapshots, total_value)?;
     let status = get_project_status(&farming_data);
 
     let provider = Arc::new(get_starknet_rpc_from_env()?);
@@ -290,8 +281,8 @@ pub async fn get_customer_listing_project_data(
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     let values = [
         (
-            project_data.vester_address.to_string(),
-            "releasableOf",
+            project_data.yielder_address.to_string(),
+            "getClaimableOf",
             vec![FieldElement::from_hex_be(wallet).unwrap()],
         ),
         (
@@ -341,13 +332,12 @@ pub async fn get_customer_details_project_data(
     farming_data: CompleteFarmingData,
     wallet: &str,
     snapshots: Vec<Snapshot>,
-    vestings: Vec<Vesting>,
     total_value: U256,
     customer_tokens: Vec<CustomerToken>,
 ) -> Result<CustomerDetailsProjectData, ModelError> {
     let mut customer_details_project_data = CustomerDetailsProjectData::default();
 
-    let apr = get_project_current_apr(snapshots, vestings, total_value)?;
+    let apr = get_project_current_apr(snapshots, total_value)?;
     let mut builder = customer_details_project_data
         .with_contracts(&project_data, &farming_data)
         .with_apr(apr);
@@ -375,8 +365,8 @@ pub async fn get_customer_details_project_data(
             vec![FieldElement::from_hex_be(wallet).unwrap()],
         ),
         (
-            project_data.vester_address.to_string(),
-            "releasableOf",
+            project_data.yielder_address.to_string(),
+            "getClaimableOf",
             vec![FieldElement::from_hex_be(wallet).unwrap()],
         ),
         (
@@ -385,8 +375,8 @@ pub async fn get_customer_details_project_data(
             vec![FieldElement::from_hex_be(wallet).unwrap()],
         ),
         (
-            project_data.vester_address.to_string(),
-            "releasedOf",
+            project_data.yielder_address.to_string(),
+            "getClaimedOf",
             vec![FieldElement::from_hex_be(wallet).unwrap()],
         ),
         (

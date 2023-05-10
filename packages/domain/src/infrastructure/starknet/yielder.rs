@@ -45,7 +45,6 @@ impl StarknetModel<HashMap<String, StarknetValue>> for YielderModel<Erc721> {
             &[
                 "getImplementationHash",
                 "getCarbonableProjectAddress",
-                "getCarbonableVesterAddress",
                 "getTotalAbsorption",
                 "getTotalDeposited",
                 "getSnapshotedTime",
@@ -65,7 +64,6 @@ impl StarknetModel<HashMap<String, StarknetValue>> for YielderModel<Erc3525> {
             &[
                 "getImplementationHash",
                 "getCarbonableProjectAddress",
-                "getCarbonableVesterAddress",
                 "getTotalAbsorption",
                 "getTotalDeposited",
                 "getSnapshotedTime",

@@ -84,6 +84,11 @@ impl PostgresProject {
                     .equals((UriIden::Table, UriIden::Id)),
             )
             .and_where(Expr::col((ProjectIden::Table, ProjectIden::Slug)).eq(slug))
+            .and_where(
+                Expr::col((ProjectIden::Table, ProjectIden::ErcImplementation))
+                    .eq(Expr::val::<&str>(ErcImplementation::Erc3525.into())
+                        .as_enum(ErcImplementation::Enum)),
+            )
             .build_postgres(PostgresQueryBuilder);
         match client.query_one(sql.as_str(), &values.as_params()).await {
             Ok(res) => Ok(Some(res.into())),
