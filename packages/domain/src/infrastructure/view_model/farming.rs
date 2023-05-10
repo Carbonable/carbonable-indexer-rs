@@ -9,7 +9,7 @@ use crate::{
     infrastructure::starknet::model::{StarknetValue, StarknetValueResolver},
 };
 
-use super::customer::CustomerToken;
+use super::customer::{CustomerToken, CustomerTokenWithSlotValue};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UriViewModel {
@@ -55,7 +55,6 @@ pub struct CustomerGlobalDataForComputation {
     pub ton_equivalent: U256,
     pub yielder_address: String,
     pub offseter_address: String,
-    pub vester_address: String,
 }
 
 impl From<tokio_postgres::Row> for CustomerGlobalDataForComputation {
@@ -71,7 +70,6 @@ impl From<tokio_postgres::Row> for CustomerGlobalDataForComputation {
             ton_equivalent: value.get(7),
             yielder_address: value.get(8),
             offseter_address: value.get(9),
-            vester_address: value.get(10),
         }
     }
 }
@@ -125,14 +123,12 @@ pub struct CompleteFarmingData {
     pub offseter_address: Option<String>,
     pub yielder_id: Option<Uuid>,
     pub yielder_address: Option<String>,
-    pub vester_address: Option<String>,
     pub minter_id: Option<Uuid>,
     pub total_supply: Option<U256>,
     pub project_abi: Option<serde_json::Value>,
     pub minter_abi: Option<serde_json::Value>,
     pub offseter_abi: Option<serde_json::Value>,
     pub yielder_abi: Option<serde_json::Value>,
-    pub vester_abi: Option<serde_json::Value>,
     pub payment_abi: Option<serde_json::Value>,
 }
 impl CompleteFarmingData {
@@ -156,15 +152,13 @@ impl From<tokio_postgres::Row> for CompleteFarmingData {
             offseter_address: value.get(9),
             yielder_id: value.get(10),
             yielder_address: value.get(11),
-            vester_address: value.get(12),
-            minter_id: value.get(13),
-            total_supply: value.get(14),
-            project_abi: value.get(15),
-            minter_abi: value.get(16),
-            offseter_abi: value.get(17),
-            yielder_abi: value.get(18),
-            vester_abi: value.get(19),
-            payment_abi: value.get(20),
+            minter_id: value.get(12),
+            total_supply: value.get(13),
+            project_abi: value.get(14),
+            minter_abi: value.get(15),
+            offseter_abi: value.get(16),
+            yielder_abi: value.get(17),
+            payment_abi: value.get(18),
         }
     }
 }
@@ -199,8 +193,6 @@ pub enum ProjectStatus {
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct ContractsList {
-    pub vester: String,
-    pub vester_abi: serde_json::Value,
     pub yielder: String,
     pub yielder_abi: serde_json::Value,
     pub offseter: String,
@@ -288,8 +280,6 @@ impl
             min_to_claim: Mass::<U256>::from_blockchain(min_claimable, farming_data.ton_equivalent)
                 .into(),
             contracts: ContractsList {
-                vester: farming_data.vester_address.unwrap_or_default(),
-                vester_abi: farming_data.vester_abi.unwrap_or_default(),
                 yielder: farming_data.yielder_address.unwrap_or_default(),
                 yielder_abi: farming_data.yielder_abi.unwrap_or_default(),
                 offseter: farming_data.offseter_address.unwrap_or_default(),
@@ -332,7 +322,7 @@ pub struct Allocation {
     r#yield: HumanComprehensibleU256<U256>,
     offseted: HumanComprehensibleU256<U256>,
     undeposited: HumanComprehensibleU256<U256>,
-    tokens: Vec<CustomerToken>,
+    tokens: Vec<CustomerTokenWithSlotValue>,
 }
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct CustomerDetailsProjectData {
@@ -351,12 +341,10 @@ impl CustomerDetailsProjectData {
         farming_data: &CompleteFarmingData,
     ) -> &mut Self {
         self.contracts = ContractsList {
-            vester: String::from(&project_data.vester_address),
             yielder: String::from(&project_data.yielder_address),
             offseter: String::from(&project_data.offseter_address),
             project: String::from(&farming_data.address),
             payment: String::from(&farming_data.payment_address.clone().unwrap_or_default()),
-            vester_abi: farming_data.vester_abi.clone().into(),
             yielder_abi: farming_data.yielder_abi.clone().into(),
             offseter_abi: farming_data.offseter_abi.clone().into(),
             project_abi: farming_data.project_abi.clone().into(),
@@ -447,17 +435,22 @@ impl CustomerDetailsProjectData {
             project.value_decimals,
         )
         .into();
-        self.allocation.r#yield = Erc20::from_blockchain(
-            yielder_deposited_of,
-            project.payment_decimals,
-            project.payment_symbol.clone(),
-        )
-        .into();
+        self.allocation.r#yield =
+            SlotValue::from_blockchain(yielder_deposited_of, project.value_decimals).into();
         self.allocation.offseted =
-            Mass::<U256>::from_blockchain(offseter_deposited_of, project.ton_equivalent).into();
+            SlotValue::from_blockchain(offseter_deposited_of, project.value_decimals).into();
         self.allocation.undeposited =
             SlotValue::from_blockchain(*value_of, project.value_decimals).into();
-        self.allocation.tokens = customer_tokens;
+        self.allocation.tokens = customer_tokens
+            .iter()
+            .map(|ct| CustomerTokenWithSlotValue {
+                wallet: ct.wallet.clone(),
+                project_address: ct.project_address.clone(),
+                slot: ct.slot,
+                token_id: ct.token_id,
+                value: SlotValue::from_blockchain(ct.value, project.value_decimals),
+            })
+            .collect();
 
         self.ton_equivalent = project.ton_equivalent.to_big_decimal(0);
         self.payment_decimals = project.payment_decimals.into();

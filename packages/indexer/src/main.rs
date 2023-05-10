@@ -6,13 +6,17 @@ use carbonable_domain::{
     domain::{
         event_source::{
             event_bus::{Consumer, EventBus},
+            minter::{
+                MinterAirdropEventConsumer, MinterBuyEventConsumer, MinterFilters,
+                MinterMigrationEventConsumer,
+            },
             project::{
                 ProjectFilters, ProjectSlotChangedEventConsumer, ProjectTransferEventConsumer,
                 ProjectTransferValueEventConsumer,
             },
             yielder::{
-                YieldFilters, YielderDepositEventConsumer, YielderVestingEventConsumer,
-                YielderWithdrawEventConsumer,
+                YieldFilters, YielderClaimEventConsumer, YielderDepositEventConsumer,
+                YielderProvisionEventConsumer, YielderWithdrawEventConsumer,
             },
             BlockMetadata, DomainEvent, Filterable,
         },
@@ -23,8 +27,7 @@ use carbonable_domain::{
         postgres::{event_store::get_last_dispatched_block, get_connection, PostgresModels},
         seed::{
             badge::BadgeSeeder, minter::MinterSeeder, offseter::OffseterSeeder,
-            project::ProjectSeeder, vester::VesterSeeder, yielder::YielderSeeder, DataSeeder,
-            Seeder,
+            project::ProjectSeeder, yielder::YielderSeeder, DataSeeder, Seeder,
         },
     },
 };
@@ -55,8 +58,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Arc::new(MinterSeeder::<Erc3525>::new(db_models_3525.clone())),
             Arc::new(OffseterSeeder::<Erc721>::new(db_models.clone())),
             Arc::new(OffseterSeeder::<Erc3525>::new(db_models_3525.clone())),
-            Arc::new(VesterSeeder::<Erc721>::new(db_models.clone())),
-            Arc::new(VesterSeeder::<Erc3525>::new(db_models_3525.clone())),
             Arc::new(YielderSeeder::<Erc721>::new(db_models)),
             Arc::new(YielderSeeder::<Erc3525>::new(db_models_3525)),
         ];
@@ -72,9 +73,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if configuration.only_index {
-        let mut filters: [Box<dyn Filterable>; 2] = [
+        let mut filters: [Box<dyn Filterable>; 3] = [
             Box::new(ProjectFilters::new()),
             Box::new(YieldFilters::new()),
+            Box::new(MinterFilters::new()),
         ];
         let mut last_block_id = configuration.starting_block;
         if !configuration.force {
@@ -85,6 +87,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let stream_config =
             configure_stream_filters(&configuration, &file_path, &mut filters, &last_block_id)?;
+
+        println!("{:#?}", stream_config);
 
         let (mut stream, configuration_handle) = ClientBuilder::<Filter, Block>::default()
             .with_bearer_token(configuration.apibara_token)
@@ -104,9 +108,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         event_bus.add_consumer(Box::new(ProjectTransferValueEventConsumer::new()));
         event_bus.add_consumer(Box::new(ProjectSlotChangedEventConsumer::new()));
         // Yielder
+        event_bus.add_consumer(Box::new(YielderClaimEventConsumer::new()));
         event_bus.add_consumer(Box::new(YielderDepositEventConsumer::new()));
-        event_bus.add_consumer(Box::new(YielderVestingEventConsumer::new()));
+        event_bus.add_consumer(Box::new(YielderProvisionEventConsumer::new()));
         event_bus.add_consumer(Box::new(YielderWithdrawEventConsumer::new()));
+        //Minter
+        event_bus.add_consumer(Box::new(MinterMigrationEventConsumer::new()));
+        event_bus.add_consumer(Box::new(MinterAirdropEventConsumer::new()));
+        event_bus.add_consumer(Box::new(MinterBuyEventConsumer::new()));
 
         loop {
             match stream.try_next().await {

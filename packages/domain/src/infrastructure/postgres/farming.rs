@@ -13,7 +13,7 @@ use crate::infrastructure::view_model::farming::{
 use super::{
     entity::{
         ErcImplementation, ImplementationIden, MinterIden, OffseterIden, PaymentIden, ProjectIden,
-        Snapshot, SnapshotIden, UriIden, VesterIden, Vesting, VestingIden, YielderIden,
+        Snapshot, SnapshotIden, UriIden, YielderIden,
     },
     PostgresError,
 };
@@ -83,17 +83,11 @@ impl PostgresFarming {
             .column((ProjectIden::Table, ProjectIden::TonEquivalent))
             .column((YielderIden::Table, YielderIden::Address))
             .column((OffseterIden::Table, OffseterIden::Address))
-            .column((VesterIden::Table, VesterIden::Address))
             .from(ProjectIden::Table)
             .left_join(
                 YielderIden::Table,
                 Expr::col((YielderIden::Table, YielderIden::ProjectId))
                     .equals((ProjectIden::Table, ProjectIden::Id)),
-            )
-            .left_join(
-                VesterIden::Table,
-                Expr::col((VesterIden::Table, VesterIden::Id))
-                    .equals((YielderIden::Table, YielderIden::VesterId)),
             )
             .left_join(
                 OffseterIden::Table,
@@ -155,7 +149,6 @@ impl PostgresFarming {
                 (YielderIden::Table, YielderIden::Id),
                 (YielderIden::Table, YielderIden::Address),
             ])
-            .column((VesterIden::Table, VesterIden::Address))
             .columns([
                 (MinterIden::Table, MinterIden::Id),
                 (MinterIden::Table, MinterIden::TotalValue),
@@ -173,7 +166,6 @@ impl PostgresFarming {
                 Alias::new("yielder_implementation"),
                 ImplementationIden::Abi,
             ))
-            .column((Alias::new("vester_implementation"), ImplementationIden::Abi))
             .column((
                 Alias::new("payment_implementation"),
                 ImplementationIden::Abi,
@@ -187,11 +179,6 @@ impl PostgresFarming {
                 OffseterIden::Table,
                 Expr::col((OffseterIden::Table, OffseterIden::ProjectId))
                     .equals((ProjectIden::Table, ProjectIden::Id)),
-            )
-            .left_join(
-                VesterIden::Table,
-                Expr::col((VesterIden::Table, VesterIden::Id))
-                    .equals((YielderIden::Table, YielderIden::VesterId)),
             )
             .left_join(
                 MinterIden::Table,
@@ -242,15 +229,6 @@ impl PostgresFarming {
             .join_as(
                 JoinType::LeftJoin,
                 ImplementationIden::Table,
-                Alias::new("vester_implementation"),
-                Expr::col((VesterIden::Table, VesterIden::Address)).equals((
-                    Alias::new("vester_implementation"),
-                    ImplementationIden::Address,
-                )),
-            )
-            .join_as(
-                JoinType::LeftJoin,
-                ImplementationIden::Table,
                 Alias::new("payment_implementation"),
                 Expr::col((PaymentIden::Table, PaymentIden::Address)).equals((
                     Alias::new("payment_implementation"),
@@ -295,23 +273,6 @@ impl PostgresFarming {
                 SnapshotIden::Time,
             ])
             .and_where(Expr::col((SnapshotIden::Table, SnapshotIden::YielderId)).eq(yielder))
-            .build_postgres(PostgresQueryBuilder);
-
-        match client.query(sql.as_str(), &values.as_params()).await {
-            Ok(res) => Ok(res.into_iter().map(|row| row.into()).collect()),
-            Err(e) => {
-                error!("{:#?}", e);
-                Err(PostgresError::TokioPostgresError(e))
-            }
-        }
-    }
-
-    pub async fn get_vestings(&self, yielder: Uuid) -> Result<Vec<Vesting>, PostgresError> {
-        let client = self.db_client_pool.clone().get().await?;
-        let (sql, values) = Query::select()
-            .from(VestingIden::Table)
-            .columns([VestingIden::Id, VestingIden::Amount, VestingIden::Time])
-            .and_where(Expr::col((VestingIden::Table, VestingIden::YielderId)).eq(yielder))
             .build_postgres(PostgresQueryBuilder);
 
         match client.query(sql.as_str(), &values.as_params()).await {

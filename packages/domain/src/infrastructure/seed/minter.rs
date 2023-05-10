@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use starknet::core::types::FieldElement;
-use tracing::error;
 
 use crate::domain::{Contract, Erc3525, Erc721};
 use crate::infrastructure::postgres::{
@@ -119,8 +118,7 @@ impl Seeder for MinterSeeder<Erc3525> {
             .expect("should have getCarbonableProjectSlot")
             .resolve("u64")
             .into();
-        error!("{:#?}", data);
-        error!("{:#?}", slot);
+
         let project =
             find_or_create_3525_project(db_models.clone(), project_address.as_str(), &slot).await?;
         let payment = find_or_create_payment(db_models.clone(), payment_address.as_str()).await?;

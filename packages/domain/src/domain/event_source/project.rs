@@ -124,7 +124,7 @@ impl Consumer<Transaction<'_>> for ProjectTransferEventConsumer {
             .get("from_address")
             .expect("should have from_address");
 
-        if &FieldElement::from_u64(0).to_string() == from {
+        if FieldElement::from_u64(0) == FieldElement::from_hex(from).unwrap() {
             return Ok(create_token_for_customer(txn, contract_address, to, &token_id).await?);
         }
 

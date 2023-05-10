@@ -1,7 +1,7 @@
 use carbonable_domain::infrastructure::postgres::entity::{
     AirdropIden, BadgeIden, BuyIden, ErcImplementation, ImplementationIden, MinterIden,
-    OffseterIden, PaymentIden, ProjectIden, SnapshotIden, TransferIden, TransferSingleIden,
-    UriIden, VesterIden, VestingIden, YielderIden,
+    OffseterIden, PaymentIden, ProjectIden, ProvisionIden, SnapshotIden, TransferIden,
+    TransferSingleIden, UriIden, YielderIden,
 };
 use sea_orm_migration::prelude::*;
 use sea_query::extension::postgres::Type;
@@ -42,12 +42,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(ColumnDef::new(UriIden::Id).uuid().not_null().primary_key())
                     .col(ColumnDef::new(UriIden::Uri).string().not_null())
-                    .col(
-                        ColumnDef::new(UriIden::Address)
-                            .string()
-                            .unique_key()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(UriIden::Address).string().not_null())
                     .col(ColumnDef::new(UriIden::Data).json().not_null())
                     .to_owned(),
             )
@@ -268,42 +263,6 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(VesterIden::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(VesterIden::Id)
-                            .uuid()
-                            .not_null()
-                            .primary_key(),
-                    )
-                    .col(
-                        ColumnDef::new(VesterIden::Address)
-                            .string()
-                            .string_len(66)
-                            .not_null()
-                            .unique_key(),
-                    )
-                    .col(ColumnDef::new(VesterIden::TotalAmount).binary().not_null())
-                    .col(
-                        ColumnDef::new(VesterIden::WithdrawableAmount)
-                            .binary()
-                            .not_null(),
-                    )
-                    .col(ColumnDef::new(VesterIden::ImplementationId).uuid().null())
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("vester_implementation_id_fkey")
-                            .from(VesterIden::Table, VesterIden::ImplementationId)
-                            .to(ImplementationIden::Table, ImplementationIden::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
-                            .on_update(ForeignKeyAction::Cascade),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .create_table(
-                Table::create()
                     .table(BadgeIden::Table)
                     .if_not_exists()
                     .col(
@@ -381,7 +340,6 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(YielderIden::ProjectId).uuid().null())
-                    .col(ColumnDef::new(YielderIden::VesterId).uuid().null())
                     .col(ColumnDef::new(YielderIden::ImplementationId).uuid().null())
                     .foreign_key(
                         ForeignKey::create()
@@ -393,17 +351,34 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("yielder_vester_id_fkey")
-                            .from(YielderIden::Table, YielderIden::VesterId)
-                            .to(VesterIden::Table, VesterIden::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
-                            .on_update(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
                             .name("yielder_implementation_id_fkey")
                             .from(YielderIden::Table, YielderIden::ImplementationId)
                             .to(ImplementationIden::Table, ImplementationIden::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_table(
+                Table::create()
+                    .table(ProvisionIden::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(ProvisionIden::Id)
+                            .uuid()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(ProvisionIden::Amount).binary().not_null())
+                    .col(ColumnDef::new(ProvisionIden::Time).date_time().not_null())
+                    .col(ColumnDef::new(ProvisionIden::YielderId).uuid().null())
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("provision_yielder_id_fkey")
+                            .from(ProvisionIden::Table, ProvisionIden::YielderId)
+                            .to(YielderIden::Table, YielderIden::Id)
                             .on_delete(ForeignKeyAction::SetNull)
                             .on_update(ForeignKeyAction::Cascade),
                     )
@@ -546,44 +521,6 @@ impl MigrationTrait for Migration {
                             .table(SnapshotIden::Table)
                             .col(SnapshotIden::YielderId)
                             .col(SnapshotIden::Time)
-                            .unique(),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .create_table(
-                Table::create()
-                    .table(VestingIden::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(VestingIden::Id)
-                            .uuid()
-                            .not_null()
-                            .primary_key(),
-                    )
-                    .col(ColumnDef::new(VestingIden::Amount).binary().not_null())
-                    .col(
-                        ColumnDef::new(VestingIden::Time)
-                            .date_time()
-                            .not_null()
-                            .unique_key(),
-                    )
-                    .col(ColumnDef::new(VestingIden::YielderId).uuid().null())
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("vesting_yielder_id_fkey")
-                            .from(VestingIden::Table, VestingIden::YielderId)
-                            .to(YielderIden::Table, YielderIden::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
-                            .on_update(ForeignKeyAction::Cascade),
-                    )
-                    .index(
-                        Index::create()
-                            .name("vesting_time_idx")
-                            .table(VestingIden::Table)
-                            .col(VestingIden::YielderId)
-                            .col(VestingIden::Time)
                             .unique(),
                     )
                     .to_owned(),
@@ -813,19 +750,6 @@ impl MigrationTrait for Migration {
             .drop_table(Table::drop().table(TransferIden::Table).to_owned())
             .await?;
 
-        // Drop vesting Table
-        manager
-            .drop_foreign_key(
-                ForeignKey::drop()
-                    .table(VestingIden::Table)
-                    .name("vesting_yielder_id_fkey")
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .drop_table(Table::drop().table(VestingIden::Table).to_owned())
-            .await?;
-
         // Drop snapshot table
         manager
             .drop_foreign_key(
@@ -860,6 +784,19 @@ impl MigrationTrait for Migration {
             .drop_table(Table::drop().table(OffseterIden::Table).to_owned())
             .await?;
 
+        // Drop provision table
+        manager
+            .drop_foreign_key(
+                ForeignKey::drop()
+                    .table(ProvisionIden::Table)
+                    .name("provision_yielder_id_fkey")
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .drop_table(Table::drop().table(ProvisionIden::Table).to_owned())
+            .await?;
+
         // Drop yielder table
         manager
             .drop_foreign_key(
@@ -874,14 +811,6 @@ impl MigrationTrait for Migration {
                 ForeignKey::drop()
                     .table(YielderIden::Table)
                     .name("yielder_implementation_id_fkey")
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .drop_foreign_key(
-                ForeignKey::drop()
-                    .table(YielderIden::Table)
-                    .name("yielder_vester_id_fkey")
                     .to_owned(),
             )
             .await?;
@@ -908,19 +837,6 @@ impl MigrationTrait for Migration {
             .await?;
         manager
             .drop_table(Table::drop().table(BadgeIden::Table).to_owned())
-            .await?;
-
-        // Drop vester table
-        manager
-            .drop_foreign_key(
-                ForeignKey::drop()
-                    .table(VesterIden::Table)
-                    .name("vester_implementation_id_fkey")
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .drop_table(Table::drop().table(VesterIden::Table).to_owned())
             .await?;
 
         // Drop minter table

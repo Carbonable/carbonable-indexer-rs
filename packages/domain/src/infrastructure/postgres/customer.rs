@@ -2,7 +2,7 @@ use crate::infrastructure::view_model::customer::CustomerToken;
 
 use super::{entity::CustomerTokenIden, PostgresError};
 use deadpool_postgres::Pool;
-use sea_query::{Expr, PostgresQueryBuilder, Query};
+use sea_query::{Expr, Func, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use std::sync::Arc;
 
@@ -40,7 +40,13 @@ impl PostgresCustomer {
                 (CustomerTokenIden::Table, CustomerTokenIden::Value),
                 (CustomerTokenIden::Table, CustomerTokenIden::ValueDecimals),
             ])
-            .and_where(Expr::col((CustomerTokenIden::Table, CustomerTokenIden::Address)).eq(wallet))
+            .and_where(
+                Expr::expr(Func::lower(Expr::col((
+                    CustomerTokenIden::Table,
+                    CustomerTokenIden::Address,
+                ))))
+                .eq(Func::lower(wallet)),
+            )
             .and_where(
                 Expr::col((CustomerTokenIden::Table, CustomerTokenIden::ProjectAddress))
                     .eq(project_address),

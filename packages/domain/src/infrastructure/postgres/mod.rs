@@ -10,7 +10,6 @@ pub mod offseter;
 pub mod payment;
 pub mod project;
 pub mod uri;
-pub mod vester;
 pub mod yielder;
 
 use crate::{
@@ -31,19 +30,18 @@ use tracing::error;
 
 use self::{
     badge::PostgresBadge,
-    entity::{Implementation, Payment, Project, Uri, Vester},
+    entity::{Implementation, Payment, Project, Uri},
     implementation::PostgresImplementation,
     minter::PostgresMinter,
     offseter::PostgresOffseter,
     payment::PostgresPayment,
     project::PostgresProject,
     uri::PostgresUri,
-    vester::PostgresVester,
     yielder::PostgresYielder,
 };
 
 use super::{
-    seed::{project::ProjectSeeder, vester::VesterSeeder, Seeder},
+    seed::{project::ProjectSeeder, Seeder},
     starknet::{
         get_proxy_abi,
         model::ModelError,
@@ -70,8 +68,6 @@ pub enum PostgresError {
     SerdeError(#[from] serde_json::Error),
     #[error("failed to seed project")]
     FailedToSeedProject,
-    #[error("failed to seed vester")]
-    FailedToSeedVester,
 }
 
 pub async fn get_connection(database_uri: Option<&str>) -> Result<Pool, PostgresError> {
@@ -94,7 +90,6 @@ pub struct PostgresModels<C: Contract> {
     pub badge: Arc<PostgresBadge>,
     pub minter: Arc<PostgresMinter<C>>,
     pub payment: Arc<PostgresPayment>,
-    pub vester: Arc<PostgresVester>,
     pub offseter: Arc<PostgresOffseter>,
     pub yielder: Arc<PostgresYielder>,
 }
@@ -110,7 +105,6 @@ where
         let badge = Arc::new(PostgresBadge::new(db_client_pool.clone()));
         let minter = Arc::new(PostgresMinter::<C>::new(db_client_pool.clone()));
         let payment = Arc::new(PostgresPayment::new(db_client_pool.clone()));
-        let vester = Arc::new(PostgresVester::new(db_client_pool.clone()));
         let offseter = Arc::new(PostgresOffseter::new(db_client_pool.clone()));
         let yielder = Arc::new(PostgresYielder::new(db_client_pool));
 
@@ -121,7 +115,6 @@ where
             badge,
             minter,
             payment,
-            vester,
             offseter,
             yielder,
         }
@@ -143,7 +136,7 @@ pub async fn find_or_create_project(
                     .await?
                     .expect("erc721 project should have been created")),
                 Err(e) => {
-                    println!("error: {:?}", e);
+                    error!("error: {:#?}", e);
                     Err(PostgresError::FailedToSeedProject)
                 }
             }
@@ -192,32 +185,9 @@ pub async fn find_or_create_3525_project(
                     }
                 },
                 Err(e) => {
-                    println!("error: {:?}", e);
+                    error!("error: {:#?}", e);
                     Err(PostgresError::FailedToSeedProject)
                 }
-            }
-        }
-    }
-}
-
-pub async fn find_or_create_vester<C>(
-    db_models: Arc<PostgresModels<C>>,
-    address: &str,
-) -> Result<Vester, PostgresError>
-where
-    C: Contract + Send + Sync,
-{
-    match db_models.vester.find_by_address(address).await? {
-        Some(v) => Ok(v),
-        None => {
-            let seeder = VesterSeeder::<C>::new(db_models.clone());
-            match seeder.seed(address.to_string()).await {
-                Ok(_v) => Ok(db_models
-                    .vester
-                    .find_by_address(address)
-                    .await?
-                    .expect("vester should have been created")),
-                Err(_e) => Err(PostgresError::FailedToSeedVester),
             }
         }
     }

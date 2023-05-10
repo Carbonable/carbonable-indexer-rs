@@ -24,7 +24,6 @@ impl PostgresYielder {
         address: &str,
         mut data: HashMap<String, StarknetValue>,
         project_id: Option<Uuid>,
-        vester_id: Option<Uuid>,
         implementation_id: Option<Uuid>,
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
@@ -38,7 +37,6 @@ impl PostgresYielder {
                 YielderIden::TotalAbsorption,
                 YielderIden::SnapshotTime,
                 YielderIden::ProjectId,
-                YielderIden::VesterId,
                 YielderIden::ImplementationId,
             ])
             .values([
@@ -57,7 +55,6 @@ impl PostgresYielder {
                     .resolve("datetime")
                     .into(),
                 project_id.into(),
-                vester_id.into(),
                 implementation_id.into(),
             ])?
             .build_postgres(PostgresQueryBuilder);

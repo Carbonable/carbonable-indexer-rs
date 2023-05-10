@@ -14,7 +14,7 @@ use crate::domain::{
 };
 use std::sync::Arc;
 
-use super::entity::EventStoreIden;
+use super::entity::{EventStoreIden, ProvisionIden};
 use super::{entity::CustomerTokenIden, PostgresError};
 
 #[derive(Debug)]
@@ -67,7 +67,7 @@ pub async fn insert_last_domain_event<'a>(
             sea_query::Value::Json(Some(Box::new(json!(&event.metadata)))).into(),
             sea_query::Value::Json(Some(Box::new(json!(&event.payload)))).into(),
             event.r#type.clone().into(),
-            OffsetDateTime::now_utc().into(),
+            metadata.timestamp.into(),
         ])?
         .build_postgres(PostgresQueryBuilder);
 
@@ -226,6 +226,48 @@ pub async fn update_token_slot<'a>(
         }
         Err(e) => {
             error!("project.transfer_value.update: {:#?}", e);
+            Err(PostgresError::from(e))
+        }
+    }
+}
+
+/// From blockchain `Provision` event updates database
+///
+/// * tx: [`deadpool_postgres::Object`]
+/// * contract_address: [`&str`]
+/// * amount: [`U256`]
+/// * time: [`OffsetDateTime`]
+///
+pub async fn add_provision_to_yielder<'a>(
+    tx: &Transaction<'a>,
+    contract_address: &str,
+    amount: U256,
+    time: OffsetDateTime,
+) -> Result<(), PostgresError> {
+    let id = uuid::Uuid::new_v4();
+    let (sql, values) = Query::insert()
+        .into_table(ProvisionIden::Table)
+        .columns([
+            ProvisionIden::Id,
+            ProvisionIden::Amount,
+            ProvisionIden::Time,
+            ProvisionIden::YielderId,
+        ])
+        .values([
+            id.into(),
+            amount.into(),
+            time.into(),
+            contract_address.into(),
+        ])?
+        .build_postgres(PostgresQueryBuilder);
+
+    match tx.execute(sql.as_str(), &values.as_params()).await {
+        Ok(res) => {
+            debug!("yielder.provision: {:#?}", res);
+            Ok(())
+        }
+        Err(e) => {
+            error!("yielder.provision: {:#?}", e);
             Err(PostgresError::from(e))
         }
     }

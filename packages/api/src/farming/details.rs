@@ -57,7 +57,6 @@ pub async fn project_details(
         ));
     }
     let snapshots = project_model.get_snapshots(yielder_id).await?;
-    let vestings = project_model.get_vestings(yielder_id).await?;
     let project = project_data.pop().unwrap();
     let total_value = project_model.get_total_value(project.id).await?;
     let customer_tokens = customer_token_model
@@ -69,7 +68,6 @@ pub async fn project_details(
         farming_data,
         &wallet,
         snapshots,
-        vestings,
         total_value,
         customer_tokens,
     )

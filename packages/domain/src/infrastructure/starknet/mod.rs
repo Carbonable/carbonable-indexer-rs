@@ -8,7 +8,6 @@ pub mod payment;
 pub mod portfolio;
 pub mod project;
 pub mod uri;
-pub mod vester;
 pub mod yielder;
 
 use starknet::{

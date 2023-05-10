@@ -275,45 +275,24 @@ pub struct Yielder {
     pub total_absorption: U256,
     pub snapshot_time: PrimitiveDateTime,
     pub project_id: Option<Uuid>,
-    pub vester_id: Option<Uuid>,
     pub implementation_id: Option<Uuid>,
 }
 
 #[enum_def]
-pub struct Vesting {
+pub struct Provision {
     pub id: Uuid,
     pub amount: U256,
     pub time: PrimitiveDateTime,
     pub yielder_id: Option<Uuid>,
 }
 
-impl From<tokio_postgres::Row> for Vesting {
+impl From<tokio_postgres::Row> for Provision {
     fn from(value: tokio_postgres::Row) -> Self {
         Self {
             id: value.get(0),
             amount: value.get(1),
             time: value.get(2),
             yielder_id: None,
-        }
-    }
-}
-
-#[enum_def]
-pub struct Vester {
-    pub id: Uuid,
-    pub address: String,
-    pub total_amount: U256,
-    pub withdrawable_amount: U256,
-    pub implementation_id: Option<Uuid>,
-}
-impl From<tokio_postgres::Row> for Vester {
-    fn from(value: tokio_postgres::Row) -> Self {
-        Self {
-            id: value.get(0),
-            address: value.get(1),
-            total_amount: value.get(2),
-            withdrawable_amount: value.get(3),
-            implementation_id: None,
         }
     }
 }

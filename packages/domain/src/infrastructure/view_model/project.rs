@@ -40,7 +40,16 @@ impl From<tokio_postgres::Row> for ProjectViewModel {
                     data: value.get(6),
                 },
             }),
-            ErcImplementation::Erc3525 => todo!(),
+            ErcImplementation::Erc3525 => Self::Erc3525(Project {
+                id: value.get(0),
+                address: value.get(1),
+                name: value.get(2),
+                slug: value.get(3),
+                uri: UriViewModel {
+                    uri: value.get(5),
+                    data: value.get(6),
+                },
+            }),
         }
     }
 }

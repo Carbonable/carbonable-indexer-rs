@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use apibara_core::starknet::v1alpha2::{BlockHeader, EventWithTransaction};
+use time::OffsetDateTime;
 
 use crate::domain::event_source::{BlockMetadata, DomainEvent, Filterable};
 
@@ -87,10 +88,14 @@ fn add_contract_event_emitter(
 
 impl From<BlockHeader> for BlockMetadata {
     fn from(value: BlockHeader) -> Self {
+        let recorded_at = OffsetDateTime::from_unix_timestamp(
+            value.timestamp.expect("should have timestamp").seconds,
+        )
+        .expect("recorded_at should be convertible to datetime");
         Self {
             hash: value.block_hash.expect("should have hash").to_string(),
             number: value.block_number,
-            timestamp: (value.timestamp.expect("should have timestamp").seconds * 1000).to_string(),
+            timestamp: recorded_at,
         }
     }
 }
