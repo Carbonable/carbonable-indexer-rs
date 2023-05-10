@@ -6,7 +6,10 @@ use tokio_postgres::error::SqlState;
 use crate::infrastructure::{
     postgres::entity::ProjectIden,
     starknet::model::StarknetValueResolver,
-    view_model::{portfolio::ProjectWithMinterAndPaymentViewModel, project::ProjectViewModel},
+    view_model::{
+        launchpad::LaunchpadProject, portfolio::ProjectWithMinterAndPaymentViewModel,
+        project::ProjectViewModel,
+    },
 };
 use sea_query::{Alias, Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
@@ -299,6 +302,52 @@ impl PostgresProject {
                 }
                 Err(e.into())
             }
+        }
+    }
+
+    pub async fn get_launchpad_list(&self) -> Result<Vec<LaunchpadProject>, PostgresError> {
+        let client = self.db_client_pool.clone().get().await?;
+        let (sql, values) = Query::select()
+            .from(ProjectIden::Table)
+            .columns([
+                (ProjectIden::Table, ProjectIden::Id),
+                (ProjectIden::Table, ProjectIden::Address),
+                (ProjectIden::Table, ProjectIden::Name),
+                (ProjectIden::Table, ProjectIden::Slug),
+                (ProjectIden::Table, ProjectIden::Setup),
+            ])
+            .columns([
+                (UriIden::Table, UriIden::Id),
+                (UriIden::Table, UriIden::Data),
+            ])
+            .columns([
+                (MinterIden::Table, MinterIden::SaleDate),
+                (MinterIden::Table, MinterIden::Address),
+                (MinterIden::Table, MinterIden::PreSaleOpen),
+                (MinterIden::Table, MinterIden::PublicSaleOpen),
+                (MinterIden::Table, MinterIden::SoldOut),
+            ])
+            .column((ImplementationIden::Table, ImplementationIden::Abi))
+            .left_join(
+                MinterIden::Table,
+                Expr::col((MinterIden::Table, MinterIden::ProjectId))
+                    .equals((ProjectIden::Table, ProjectIden::Id)),
+            )
+            .left_join(
+                UriIden::Table,
+                Expr::col((UriIden::Table, UriIden::Id))
+                    .equals((ProjectIden::Table, ProjectIden::UriId)),
+            )
+            .left_join(
+                ImplementationIden::Table,
+                Expr::col((MinterIden::Table, MinterIden::Address))
+                    .equals((ImplementationIden::Table, ImplementationIden::Address)),
+            )
+            .build_postgres(PostgresQueryBuilder);
+
+        match client.query(sql.as_str(), &values.as_params()).await {
+            Ok(res) => Ok(res.into_iter().map(|r| r.into()).collect()),
+            Err(e) => Err(PostgresError::TokioPostgresError(e)),
         }
     }
 }

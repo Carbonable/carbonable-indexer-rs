@@ -217,6 +217,7 @@ pub struct Minter {
     pub project_id: Option<Uuid>,
     pub payment_id: Option<Uuid>,
     pub implementation_id: Option<Uuid>,
+    pub sale_date: Option<PrimitiveDateTime>,
 }
 
 #[enum_def]
