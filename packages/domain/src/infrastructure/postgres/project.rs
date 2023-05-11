@@ -350,4 +350,60 @@ impl PostgresProject {
             Err(e) => Err(PostgresError::TokioPostgresError(e)),
         }
     }
+
+    pub async fn get_launchpad_details(
+        &self,
+        slug: &str,
+    ) -> Result<Option<LaunchpadProject>, PostgresError> {
+        let client = self.db_client_pool.clone().get().await?;
+        let (sql, values) = Query::select()
+            .from(ProjectIden::Table)
+            .columns([
+                (ProjectIden::Table, ProjectIden::Id),
+                (ProjectIden::Table, ProjectIden::Address),
+                (ProjectIden::Table, ProjectIden::Name),
+                (ProjectIden::Table, ProjectIden::Slug),
+                (ProjectIden::Table, ProjectIden::Setup),
+            ])
+            .columns([
+                (UriIden::Table, UriIden::Id),
+                (UriIden::Table, UriIden::Data),
+            ])
+            .columns([
+                (MinterIden::Table, MinterIden::SaleDate),
+                (MinterIden::Table, MinterIden::Address),
+                (MinterIden::Table, MinterIden::PreSaleOpen),
+                (MinterIden::Table, MinterIden::PublicSaleOpen),
+                (MinterIden::Table, MinterIden::SoldOut),
+            ])
+            .column((ImplementationIden::Table, ImplementationIden::Abi))
+            .column((MinterIden::Table, MinterIden::Whitelist))
+            .left_join(
+                MinterIden::Table,
+                Expr::col((MinterIden::Table, MinterIden::ProjectId))
+                    .equals((ProjectIden::Table, ProjectIden::Id)),
+            )
+            .left_join(
+                UriIden::Table,
+                Expr::col((UriIden::Table, UriIden::Id))
+                    .equals((ProjectIden::Table, ProjectIden::UriId)),
+            )
+            .left_join(
+                ImplementationIden::Table,
+                Expr::col((MinterIden::Table, MinterIden::Address))
+                    .equals((ImplementationIden::Table, ImplementationIden::Address)),
+            )
+            .and_where(Expr::col((ProjectIden::Table, ProjectIden::Slug)).eq(slug))
+            .and_where(
+                Expr::col((ProjectIden::Table, ProjectIden::ErcImplementation))
+                    .eq(Expr::val::<&str>(ErcImplementation::Erc3525.into())
+                        .as_enum(ErcImplementation::Enum)),
+            )
+            .build_postgres(PostgresQueryBuilder);
+
+        match client.query_one(sql.as_str(), &values.as_params()).await {
+            Ok(res) => Ok(Some(res.into())),
+            Err(_) => Ok(None),
+        }
+    }
 }
