@@ -85,7 +85,11 @@ async fn main() -> std::io::Result<()> {
             )
             .service(
                 web::scope("/launchpad")
-                    .route("/list", web::get().to(launchpad::list::lauchpad_list)),
+                    .route("/list", web::get().to(launchpad::list::lauchpad_list))
+                    .route(
+                        "/details/{slug}",
+                        web::get().to(launchpad::details::launchpad_details),
+                    ),
             )
     })
     .bind(("0.0.0.0", 8080))?

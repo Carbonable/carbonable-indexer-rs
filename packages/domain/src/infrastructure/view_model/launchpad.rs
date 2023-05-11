@@ -5,7 +5,7 @@ use time::PrimitiveDateTime;
 #[derive(Debug, Serialize)]
 pub struct Launchpad {
     is_ready: bool,
-sale_date: Option<PrimitiveDateTime>,
+    sale_date: Option<PrimitiveDateTime>,
     minter_contract: MinterContract,
     image: Option<String>,
     whitelisted_sale_open: bool,
@@ -23,6 +23,8 @@ pub struct MinterContract {
 pub struct LaunchpadProject {
     project: Project,
     launchpad: Launchpad,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    whitelist: Option<serde_json::Value>,
 }
 
 impl From<tokio_postgres::Row> for LaunchpadProject {
@@ -50,6 +52,7 @@ impl From<tokio_postgres::Row> for LaunchpadProject {
                 public_sale_open: value.get(10),
                 is_sold_out: value.get(11),
             },
+            whitelist: value.get(13),
         }
     }
 }
