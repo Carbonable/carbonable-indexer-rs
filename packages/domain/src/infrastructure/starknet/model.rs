@@ -56,13 +56,25 @@ pub trait StarknetModel<T> {
 }
 
 /// Transforms FieldElelent to U256
+/// * `element` - [FieldElement]
+///
 pub fn felt_to_u256(element: FieldElement) -> U256 {
     U256(crypto_bigint::U256::from_be_bytes(element.to_bytes_be()))
 }
 
 /// Transforms U256 to FieldElement
+/// * `u` - [&U256]
+///
 pub fn u256_to_felt(u: &U256) -> FieldElement {
     FieldElement::from_bytes_be(&u.0.to_be_bytes()).unwrap()
+}
+
+/// Convert a timestamp str hex to an OffsetDateTime
+/// * `timestamp_hex` - [&str] - Timestamp str in hex from inside a felt
+///
+pub fn felt_to_offset_datetime(timestamp_hex: &str) -> OffsetDateTime {
+    let felt = FieldElement::from_hex_be(timestamp_hex).unwrap();
+    OffsetDateTime::from_unix_timestamp(felt.to_big_decimal(0).to_i64().unwrap()).unwrap()
 }
 
 pub fn get_call_function(

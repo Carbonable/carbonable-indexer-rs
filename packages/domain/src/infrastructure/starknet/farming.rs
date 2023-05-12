@@ -9,7 +9,10 @@ use time::OffsetDateTime;
 
 use crate::infrastructure::{
     flatten,
-    postgres::{customer::PostgresCustomer, entity::Snapshot},
+    postgres::{
+        customer::PostgresCustomer,
+        entity::{Provision, Snapshot},
+    },
     view_model::{
         customer::CustomerToken,
         farming::{
@@ -36,20 +39,12 @@ use super::{
 /// Get cumulated value of tokens in slot for customer
 pub async fn get_value_of(
     provider: Arc<JsonRpcClient<HttpTransport>>,
-    customer_tokens: &[CustomerToken],
     address: String,
     slot: U256,
     wallet: String,
 ) -> Result<U256, ModelError> {
     let balance = get_balance_of(&provider.clone(), &address.clone(), &wallet.clone()).await?;
     let mut value = U256::zero();
-    let token_len = u64::try_from(customer_tokens.len()).unwrap();
-    if balance == token_len {
-        for t in customer_tokens {
-            value += t.value;
-        }
-        return Ok(value);
-    }
 
     for token_index in 0..balance {
         let token_id = get_token_id(&provider, &address, &wallet, &token_index).await?;
@@ -63,36 +58,42 @@ pub async fn get_value_of(
     }
     Ok(value)
 }
-/// Get claimable amount for slot in customer
-async fn get_claimable_of(
+/// Get yielder claimable amount for slot in customer
+/// * `provider` - [Arc<JsonRpcClient<HttpTransport>>] - Starknet RPC client
+/// * `address` - [&str] - Yielder contract address
+/// * `wallet` - [&str] - Customer wallet address
+async fn get_yielder_claimable_of(
     provider: Arc<JsonRpcClient<HttpTransport>>,
-    address: String,
-    wallet: String,
+    address: &str,
+    wallet: &str,
 ) -> Result<U256, ModelError> {
     let response = provider
         .call(
             get_call_function(
-                &FieldElement::from_hex_be(address.as_str()).unwrap(),
+                &FieldElement::from_hex_be(address).unwrap(),
                 "getClaimableOf",
-                vec![FieldElement::from_hex_be(wallet.as_str()).unwrap()],
+                vec![FieldElement::from_hex_be(wallet).unwrap()],
             ),
             &BlockId::Tag(BlockTag::Latest),
         )
         .await?;
     Ok(felt_to_u256(*response.first().unwrap()))
 }
-/// Get releasable amount for slot in customer
-async fn get_releasable_of(
+/// Get offseter claimable amount for slot in customer
+/// * `provider` - [Arc<JsonRpcClient<HttpTransport>>] - Starknet RPC client
+/// * `address` - [&str] - Yielder contract address
+/// * `wallet` - [&str] - Customer wallet address
+async fn get_offseter_claimable_of(
     provider: Arc<JsonRpcClient<HttpTransport>>,
-    address: String,
-    wallet: String,
+    address: &str,
+    wallet: &str,
 ) -> Result<U256, ModelError> {
     let response = provider
         .call(
             get_call_function(
-                &FieldElement::from_hex_be(address.as_str()).unwrap(),
-                "getReleasableOf",
-                vec![FieldElement::from_hex_be(wallet.as_str()).unwrap()],
+                &FieldElement::from_hex_be(address).unwrap(),
+                "getClaimableOf",
+                vec![FieldElement::from_hex_be(wallet).unwrap()],
             ),
             &BlockId::Tag(BlockTag::Latest),
         )
@@ -104,28 +105,24 @@ async fn customer_farming_data(
     provider: Arc<JsonRpcClient<HttpTransport>>,
     wallet: String,
     data: CustomerGlobalDataForComputation,
-    customer_tokens: Vec<CustomerToken>,
+    _customer_tokens: Vec<CustomerToken>,
 ) -> Result<CustomerGlobalData, ModelError> {
     let value = get_value_of(
         provider.clone(),
-        &customer_tokens,
         data.project_address.to_string(),
         data.project_slot,
         wallet.clone(),
     )
     .await?;
-    let releaseable_of = get_releasable_of(
-        provider.clone(),
-        data.offseter_address.to_string(),
-        wallet.clone(),
-    )
-    .await?;
-    let claimable_of = get_claimable_of(
-        provider.clone(),
-        data.yielder_address.to_string(),
-        wallet.to_string(),
-    )
-    .await?;
+
+    if U256::zero() == value {
+        return Ok(CustomerGlobalData::default());
+    }
+
+    let releaseable_of =
+        get_offseter_claimable_of(provider.clone(), &data.offseter_address, &wallet).await?;
+    let claimable_of =
+        get_yielder_claimable_of(provider.clone(), &data.yielder_address, &wallet).await?;
 
     Ok(CustomerGlobalData {
         total_deposited: SlotValue::from_blockchain(value, data.value_decimals),
@@ -168,27 +165,39 @@ pub async fn get_customer_global_farming_data(
 }
 
 /// Calculates project APR base on :
-/// TODO: Update APR calculation with latest provision. Everything about vesting was commented out
-/// in this PR.
+/// Explanation :
+/// APR = ratio / dt
+/// ratio = 100 * amount_$_provision / total_$_project
+/// dt = (time_snapshot(n) - time_snapshot(n-1)) / nb_seconds_per_year
+///
+/// * `snapshots` - [Vec<Snapshots>] - Yielder snapshots
+/// * `provisions` - [Vec<Provision>] - Yielder provision - an admin deposit cashflow on yielder
+/// represents project carbon credit sale
+/// * `total_value` - [U256] - Total value of a slot * unit_price of minter
 ///
 fn get_project_current_apr(
     snapshots: Vec<Snapshot>,
+    provisions: Vec<Provision>,
     total_value: U256,
 ) -> Result<ProjectApr, ModelError> {
     if snapshots.is_empty() {
         return Ok(ProjectApr::None);
     }
-    let snapshot = match snapshots
-        .iter()
-        // .filter(|s| s.time < last_vesting.time)
+    if provisions.is_empty() {
+        return Ok(ProjectApr::None);
+    }
+    let provision = provisions
         .last()
-    {
+        .expect("should have at least one provision");
+
+    let snapshot = match snapshots.iter().filter(|s| s.time < provision.time).last() {
         Some(s) => s,
         None => return Err(ModelError::InvalidDataSet("snapshots".to_string())),
     };
+
     let diff_time = snapshot.time - snapshot.previous_time;
     let apr = U256(crypto_bigint::U256::from_u8(100))
-        // * last_vesting.amount
+        * provision.amount
         * (U256(crypto_bigint::U256::from_u16(365))
             * U256(crypto_bigint::U256::from_u8(24))
             * U256(crypto_bigint::U256::from_u32(3600)))
@@ -217,11 +226,10 @@ pub async fn get_unconnected_project_data(
     data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
     snapshots: Vec<Snapshot>,
+    provisions: Vec<Provision>,
     total_value: U256,
 ) -> Result<UnconnectedFarmingData, ModelError> {
-    // times, absorptions, ton_equivalent, unit_price, payment_decimals
-
-    let apr = get_project_current_apr(snapshots, total_value)?;
+    let apr = get_project_current_apr(snapshots, provisions, total_value)?;
     let status = get_project_status(&farming_data);
 
     let provider = Arc::new(get_starknet_rpc_from_env()?);
@@ -276,7 +284,7 @@ pub async fn get_customer_listing_project_data(
     project_data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
     wallet: &str,
-    customer_tokens: Vec<CustomerToken>,
+    _customer_tokens: Vec<CustomerToken>,
 ) -> Result<CustomerListingProjectData, ModelError> {
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     let values = [
@@ -311,7 +319,6 @@ pub async fn get_customer_listing_project_data(
 
     let value_of = get_value_of(
         provider.clone(),
-        &customer_tokens,
         project_data.project_address.to_string(),
         project_data.project_slot,
         wallet.to_string(),
@@ -332,12 +339,13 @@ pub async fn get_customer_details_project_data(
     farming_data: CompleteFarmingData,
     wallet: &str,
     snapshots: Vec<Snapshot>,
+    provisions: Vec<Provision>,
     total_value: U256,
     customer_tokens: Vec<CustomerToken>,
 ) -> Result<CustomerDetailsProjectData, ModelError> {
     let mut customer_details_project_data = CustomerDetailsProjectData::default();
 
-    let apr = get_project_current_apr(snapshots, total_value)?;
+    let apr = get_project_current_apr(snapshots, provisions, total_value)?;
     let mut builder = customer_details_project_data
         .with_contracts(&project_data, &farming_data)
         .with_apr(apr);
@@ -393,7 +401,6 @@ pub async fn get_customer_details_project_data(
 
     let value_of = get_value_of(
         provider.clone(),
-        &customer_tokens,
         project_data.project_address.to_string(),
         project_data.project_slot,
         wallet.to_string(),

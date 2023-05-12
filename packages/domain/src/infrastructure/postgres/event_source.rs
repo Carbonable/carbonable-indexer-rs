@@ -6,6 +6,7 @@ use serde_json::json;
 use time::OffsetDateTime;
 use tokio_postgres::error::SqlState;
 use tracing::{debug, error};
+use uuid::Uuid;
 
 use crate::domain::event_source::BlockMetadata;
 use crate::domain::{
@@ -14,7 +15,7 @@ use crate::domain::{
 };
 use std::sync::Arc;
 
-use super::entity::{EventStoreIden, ProvisionIden};
+use super::entity::{EventStoreIden, ProvisionIden, Snapshot, SnapshotIden, YielderIden};
 use super::{entity::CustomerTokenIden, PostgresError};
 
 #[derive(Debug)]
@@ -240,7 +241,7 @@ pub async fn update_token_slot<'a>(
 ///
 pub async fn add_provision_to_yielder<'a>(
     tx: &Transaction<'a>,
-    contract_address: &str,
+    yielder_id: Uuid,
     amount: U256,
     time: OffsetDateTime,
 ) -> Result<(), PostgresError> {
@@ -253,12 +254,7 @@ pub async fn add_provision_to_yielder<'a>(
             ProvisionIden::Time,
             ProvisionIden::YielderId,
         ])
-        .values([
-            id.into(),
-            amount.into(),
-            time.into(),
-            contract_address.into(),
-        ])?
+        .values([id.into(), amount.into(), time.into(), yielder_id.into()])?
         .build_postgres(PostgresQueryBuilder);
 
     match tx.execute(sql.as_str(), &values.as_params()).await {
@@ -270,5 +266,87 @@ pub async fn add_provision_to_yielder<'a>(
             error!("yielder.provision: {:#?}", e);
             Err(PostgresError::from(e))
         }
+    }
+}
+
+/// From blockchain `Snapshot` event updates database
+///
+/// * tx: [`deadpool_postgres::Object`]
+/// * contract_address: [`&str`]
+/// * amount: [`U256`]
+/// * time: [`OffsetDateTime`]
+///
+pub async fn add_snapshot_to_yielder<'a>(
+    tx: &Transaction<'a>,
+    snapshot: &Snapshot,
+) -> Result<(), PostgresError> {
+    let id = uuid::Uuid::new_v4();
+    let (sql, values) = Query::insert()
+        .into_table(SnapshotIden::Table)
+        .columns([
+            SnapshotIden::Id,
+            SnapshotIden::PreviousTime,
+            SnapshotIden::PreviousProjectAbsorption,
+            SnapshotIden::PreviousOffseterAbsorption,
+            SnapshotIden::PreviousYielderAbsorption,
+            SnapshotIden::CurrentProjectAbsorption,
+            SnapshotIden::CurrentOffseterAbsorption,
+            SnapshotIden::CurrentYielderAbsorption,
+            SnapshotIden::ProjectAbsorption,
+            SnapshotIden::OffseterAbsorption,
+            SnapshotIden::YielderAbsorption,
+            SnapshotIden::Time,
+            SnapshotIden::YielderId,
+        ])
+        .values([
+            id.into(),
+            snapshot.previous_time.into(),
+            snapshot.previous_project_absorption.into(),
+            snapshot.previous_offseter_absorption.into(),
+            snapshot.previous_yielder_absorption.into(),
+            snapshot.current_project_absorption.into(),
+            snapshot.current_offseter_absorption.into(),
+            snapshot.current_yielder_absorption.into(),
+            snapshot.project_absorption.into(),
+            snapshot.offseter_absorption.into(),
+            snapshot.yielder_absorption.into(),
+            snapshot.time.into(),
+            snapshot.yielder_id.into(),
+        ])?
+        .build_postgres(PostgresQueryBuilder);
+
+    match tx.execute(sql.as_str(), &values.as_params()).await {
+        Ok(res) => {
+            debug!("yielder.snapshot: {:#?}", res);
+            Ok(())
+        }
+        Err(e) => {
+            error!("yielder.snapshot: {:#?}", e);
+            Err(PostgresError::from(e))
+        }
+    }
+}
+
+/// Get yielder id from blockchain address
+///
+/// * tx: [`deadpool_postgres::Object`]
+/// * yielder_address: [`&str`]
+///
+pub async fn get_yielder_id_from_address<'a>(
+    tx: &Transaction<'a>,
+    yielder_address: &str,
+) -> Option<Uuid> {
+    let (sql, values) = Query::select()
+        .from(YielderIden::Table)
+        .column(YielderIden::Id)
+        .and_where(Expr::col(YielderIden::Address).eq(yielder_address))
+        .build_postgres(PostgresQueryBuilder);
+
+    match tx.query_one(&sql, &values.as_params()).await {
+        Ok(res) => {
+            let yielder_id: Uuid = res.get(0);
+            Some(yielder_id)
+        }
+        Err(_) => None,
     }
 }

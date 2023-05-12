@@ -1,14 +1,23 @@
 use std::collections::HashMap;
 
 use apibara_core::starknet::v1alpha2::FieldElement;
-use bigdecimal::ToPrimitive;
 use deadpool_postgres::Transaction;
 use serde::{Deserialize, Serialize};
 use starknet::macros::selector;
-use time::OffsetDateTime;
+use tracing::error;
+use uuid::Uuid;
 
 use crate::{
-    domain::crypto::U256, infrastructure::postgres::event_source::add_provision_to_yielder,
+    domain::crypto::U256,
+    infrastructure::{
+        postgres::{
+            entity::Snapshot,
+            event_source::{
+                add_provision_to_yielder, add_snapshot_to_yielder, get_yielder_id_from_address,
+            },
+        },
+        starknet::model::felt_to_offset_datetime,
+    },
 };
 
 use super::{
@@ -57,7 +66,7 @@ impl Filterable for YieldFilters {
     }
 
     fn hydrate_from_file(&mut self, address_list: Vec<HashMap<String, String>>) {
-        let contracts = self.extract_addresses(address_list, &["yielder"]);
+        let contracts = self.extract_addresses(address_list, &["yielder", "yielder_3525"]);
         self.contracts = contracts;
         for contract in self.contracts.iter() {
             self.filters.insert(
@@ -72,12 +81,16 @@ impl Filterable for YieldFilters {
                         Event::Yielder(YielderEvents::Deposit),
                     ),
                     (
-                        FieldElement::from_bytes(&selector!("Vesting").to_bytes_be()).to_string(),
+                        FieldElement::from_bytes(&selector!("Withdraw").to_bytes_be()).to_string(),
+                        Event::Yielder(YielderEvents::Withdraw),
+                    ),
+                    (
+                        FieldElement::from_bytes(&selector!("Provision").to_bytes_be()).to_string(),
                         Event::Yielder(YielderEvents::Provision),
                     ),
                     (
-                        FieldElement::from_bytes(&selector!("Withdraw").to_bytes_be()).to_string(),
-                        Event::Yielder(YielderEvents::Withdraw),
+                        FieldElement::from_bytes(&selector!("Snapshot").to_bytes_be()).to_string(),
+                        Event::Yielder(YielderEvents::Snapshot),
                     ),
                 ]
                 .to_vec(),
@@ -152,19 +165,144 @@ impl Consumer<Transaction<'_>> for YielderProvisionEventConsumer {
     }
 
     async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
-        let contract_address = event
+        let yielder_address = event
             .metadata
             .get("from_address")
             .expect("should have from_address");
+        let yielder_id = match get_yielder_id_from_address(txn, yielder_address).await {
+            Some(id) => id,
+            None => {
+                error!(
+                    "yielder.provision => did not find yielder matching address: {}",
+                    yielder_address
+                );
+                return Err(DomainError::ContractNotFound(yielder_address.to_string()));
+            }
+        };
+
         let amount = U256::from(FieldElement::from_hex(event.payload.get("1").unwrap()).unwrap());
-        let time_millis =
-            U256::from(FieldElement::from_hex(event.payload.get("1").unwrap()).unwrap());
+        let time = felt_to_offset_datetime(event.payload.get("2").expect("should have time"));
 
-        let date_time =
-            OffsetDateTime::from_unix_timestamp(time_millis.to_big_decimal(0).to_i64().unwrap())
-                .unwrap();
+        add_provision_to_yielder(txn, yielder_id, amount, time).await?;
+        Ok(())
+    }
+}
 
-        add_provision_to_yielder(txn, contract_address, amount, date_time).await?;
+/// Consuming [`Snapshot`] [`Yielder`] on chain
+#[derive(Default, Debug)]
+pub struct YielderSnapshotEventConsumer {}
+impl YielderSnapshotEventConsumer {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+#[async_trait::async_trait]
+impl Consumer<Transaction<'_>> for YielderSnapshotEventConsumer {
+    fn can_consume(&self, event: &Event) -> bool {
+        matches!(event, Event::Yielder(YielderEvents::Snapshot))
+    }
+
+    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
+        let yielder_address = event
+            .metadata
+            .get("from_address")
+            .expect("should have from_address");
+        let yielder_id = match get_yielder_id_from_address(txn, yielder_address).await {
+            Some(id) => id,
+            None => {
+                error!(
+                    "yielder.provision => did not find yielder matching address: {}",
+                    yielder_address
+                );
+                return Err(DomainError::ContractNotFound(yielder_address.to_string()));
+            }
+        };
+
+        let previous_time =
+            felt_to_offset_datetime(event.payload.get("1").expect("should have previous_time"));
+        let current_time =
+            felt_to_offset_datetime(event.payload.get("5").expect("should have current_time"));
+
+        let snapshot = Snapshot {
+            id: Uuid::new_v4(),
+            previous_time,
+            previous_project_absorption: FieldElement::from_hex(
+                event
+                    .payload
+                    .get("2")
+                    .expect("should have previous_project_absorption"),
+            )
+            .unwrap()
+            .into(),
+            previous_offseter_absorption: FieldElement::from_hex(
+                event
+                    .payload
+                    .get("3")
+                    .expect("should have previous_offseter_absorption"),
+            )
+            .unwrap()
+            .into(),
+            previous_yielder_absorption: FieldElement::from_hex(
+                event
+                    .payload
+                    .get("4")
+                    .expect("should have previous_yielder_absorption"),
+            )
+            .unwrap()
+            .into(),
+            time: current_time,
+            current_project_absorption: FieldElement::from_hex(
+                event
+                    .payload
+                    .get("6")
+                    .expect("should have current_project_absorption"),
+            )
+            .unwrap()
+            .into(),
+            current_offseter_absorption: FieldElement::from_hex(
+                event
+                    .payload
+                    .get("7")
+                    .expect("should have current_offseter_absorption"),
+            )
+            .unwrap()
+            .into(),
+            current_yielder_absorption: FieldElement::from_hex(
+                event
+                    .payload
+                    .get("8")
+                    .expect("should have current_yielder_absorption"),
+            )
+            .unwrap()
+            .into(),
+            project_absorption: FieldElement::from_hex(
+                event
+                    .payload
+                    .get("9")
+                    .expect("should have project_absorption"),
+            )
+            .unwrap()
+            .into(),
+            offseter_absorption: FieldElement::from_hex(
+                event
+                    .payload
+                    .get("10")
+                    .expect("should have offseter_absorption"),
+            )
+            .unwrap()
+            .into(),
+            yielder_absorption: FieldElement::from_hex(
+                event
+                    .payload
+                    .get("11")
+                    .expect("should have yielder_absorption"),
+            )
+            .unwrap()
+            .into(),
+            yielder_id: Some(yielder_id),
+        };
+        let _snapshot_added = add_snapshot_to_yielder(txn, &snapshot).await;
         Ok(())
     }
 }

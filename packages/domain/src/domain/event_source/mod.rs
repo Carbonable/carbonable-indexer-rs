@@ -150,6 +150,8 @@ pub enum DomainError {
     PostgresError(#[from] PostgresError),
     #[error("feature not available there")]
     NotAvailable,
+    #[error("contract with address {0} not found inside db")]
+    ContractNotFound(String),
 }
 
 #[async_trait::async_trait]

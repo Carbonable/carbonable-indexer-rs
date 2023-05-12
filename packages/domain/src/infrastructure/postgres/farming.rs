@@ -13,7 +13,7 @@ use crate::infrastructure::view_model::farming::{
 use super::{
     entity::{
         ErcImplementation, ImplementationIden, MinterIden, OffseterIden, PaymentIden, ProjectIden,
-        Snapshot, SnapshotIden, UriIden, YielderIden,
+        Provision, ProvisionIden, Snapshot, SnapshotIden, UriIden, YielderIden,
     },
     PostgresError,
 };
@@ -273,6 +273,27 @@ impl PostgresFarming {
                 SnapshotIden::Time,
             ])
             .and_where(Expr::col((SnapshotIden::Table, SnapshotIden::YielderId)).eq(yielder))
+            .build_postgres(PostgresQueryBuilder);
+
+        match client.query(sql.as_str(), &values.as_params()).await {
+            Ok(res) => Ok(res.into_iter().map(|row| row.into()).collect()),
+            Err(e) => {
+                error!("{:#?}", e);
+                Err(PostgresError::TokioPostgresError(e))
+            }
+        }
+    }
+
+    pub async fn get_provisions(&self, yielder: Uuid) -> Result<Vec<Provision>, PostgresError> {
+        let client = self.db_client_pool.clone().get().await?;
+        let (sql, values) = Query::select()
+            .from(ProvisionIden::Table)
+            .columns([
+                ProvisionIden::Id,
+                ProvisionIden::Amount,
+                ProvisionIden::Time,
+            ])
+            .and_where(Expr::col((ProvisionIden::Table, ProvisionIden::YielderId)).eq(yielder))
             .build_postgres(PostgresQueryBuilder);
 
         match client.query(sql.as_str(), &values.as_params()).await {

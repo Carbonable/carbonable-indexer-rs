@@ -95,6 +95,7 @@ pub async fn unconnected(
     };
 
     let snapshots = project_model.get_snapshots(yielder_id).await?;
+    let provisions = project_model.get_provisions(yielder_id).await?;
 
     if project_data.is_empty() || farming_data.absorptions.is_empty() {
         return Ok(HttpResponse::NotFound().json(
@@ -109,7 +110,8 @@ pub async fn unconnected(
     let total_value = project_model.get_total_value(project.id).await?;
 
     let unconnected_data_project =
-        get_unconnected_project_data(project, farming_data, snapshots, total_value).await?;
+        get_unconnected_project_data(project, farming_data, snapshots, provisions, total_value)
+            .await?;
     Ok(HttpResponse::Ok().json(ServerResponse::Data {
         data: unconnected_data_project,
     }))
