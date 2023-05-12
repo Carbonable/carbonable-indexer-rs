@@ -237,10 +237,10 @@ impl
         let farming_data = value.2;
         let value_of = value.3;
 
-        let releasable_of: U256 = StarknetValue::new(blockchain_response[0].clone())
+        let yielder_claimable: U256 = StarknetValue::new(blockchain_response[0].clone())
             .resolve("u256")
             .into();
-        let claimable_of: U256 = StarknetValue::new(blockchain_response[1].clone())
+        let offseter_claimable: U256 = StarknetValue::new(blockchain_response[1].clone())
             .resolve("u256")
             .into();
         let yielder_deposited: U256 = StarknetValue::new(blockchain_response[2].clone())
@@ -262,13 +262,13 @@ impl
             payment_decimals: project_data.payment_decimals.into(),
             ton_equivalent: farming_data.ton_equivalent,
             vesting_to_claim: Erc20::from_blockchain(
-                claimable_of,
+                yielder_claimable,
                 farming_data.payment_decimals,
                 farming_data.payment_symbol,
             )
             .into(),
             absorption_to_claim: Mass::<U256>::from_blockchain(
-                releasable_of,
+                offseter_claimable,
                 farming_data.ton_equivalent,
             )
             .into(),

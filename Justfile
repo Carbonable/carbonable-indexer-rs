@@ -21,7 +21,7 @@ run_seeding env=default_env:
 
 # run api package to expose carbonable indexer at `http://localhost:8000`
 run_api env=default_env:
-	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} RUST_LOG=debug DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} cargo run -p carbonable-api
+	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} RUST_LOG=debug RUST_BACKTRACE=1 DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} cargo run -p carbonable-api
 
 # migrate database to newest schema version
 migrate:

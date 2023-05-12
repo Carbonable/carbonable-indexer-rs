@@ -3,7 +3,7 @@ use std::fmt::Display;
 use bigdecimal::BigDecimal;
 use postgres_types::{accepts, to_sql_checked, FromSql, ToSql};
 use sea_query::{enum_def, Iden};
-use time::PrimitiveDateTime;
+use time::{OffsetDateTime, PrimitiveDateTime};
 use uuid::Uuid;
 
 use crate::domain::{crypto::U256, event_source::Event};
@@ -235,7 +235,7 @@ pub struct Offseter {
 #[enum_def]
 pub struct Snapshot {
     pub id: Uuid,
-    pub previous_time: PrimitiveDateTime,
+    pub previous_time: OffsetDateTime,
     pub previous_project_absorption: U256,
     pub previous_offseter_absorption: U256,
     pub previous_yielder_absorption: U256,
@@ -245,7 +245,7 @@ pub struct Snapshot {
     pub project_absorption: U256,
     pub offseter_absorption: U256,
     pub yielder_absorption: U256,
-    pub time: PrimitiveDateTime,
+    pub time: OffsetDateTime,
     pub yielder_id: Option<Uuid>,
 }
 impl From<tokio_postgres::Row> for Snapshot {
@@ -283,7 +283,7 @@ pub struct Yielder {
 pub struct Provision {
     pub id: Uuid,
     pub amount: U256,
-    pub time: PrimitiveDateTime,
+    pub time: OffsetDateTime,
     pub yielder_id: Option<Uuid>,
 }
 

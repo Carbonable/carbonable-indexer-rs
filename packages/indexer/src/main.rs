@@ -16,7 +16,8 @@ use carbonable_domain::{
             },
             yielder::{
                 YieldFilters, YielderClaimEventConsumer, YielderDepositEventConsumer,
-                YielderProvisionEventConsumer, YielderWithdrawEventConsumer,
+                YielderProvisionEventConsumer, YielderSnapshotEventConsumer,
+                YielderWithdrawEventConsumer,
             },
             BlockMetadata, DomainEvent, Filterable,
         },
@@ -88,8 +89,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let stream_config =
             configure_stream_filters(&configuration, &file_path, &mut filters, &last_block_id)?;
 
-        println!("{:#?}", stream_config);
-
         let (mut stream, configuration_handle) = ClientBuilder::<Filter, Block>::default()
             .with_bearer_token(configuration.apibara_token)
             .connect(Uri::from_static(Box::leak(
@@ -111,6 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         event_bus.add_consumer(Box::new(YielderClaimEventConsumer::new()));
         event_bus.add_consumer(Box::new(YielderDepositEventConsumer::new()));
         event_bus.add_consumer(Box::new(YielderProvisionEventConsumer::new()));
+        event_bus.add_consumer(Box::new(YielderSnapshotEventConsumer::new()));
         event_bus.add_consumer(Box::new(YielderWithdrawEventConsumer::new()));
         //Minter
         event_bus.add_consumer(Box::new(MinterMigrationEventConsumer::new()));
