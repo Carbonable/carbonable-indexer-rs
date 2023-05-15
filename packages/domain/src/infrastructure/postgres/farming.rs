@@ -83,6 +83,7 @@ impl PostgresFarming {
             .column((ProjectIden::Table, ProjectIden::TonEquivalent))
             .column((YielderIden::Table, YielderIden::Address))
             .column((OffseterIden::Table, OffseterIden::Address))
+            .column((ProjectIden::Table, ProjectIden::Slot))
             .from(ProjectIden::Table)
             .left_join(
                 YielderIden::Table,
@@ -149,10 +150,8 @@ impl PostgresFarming {
                 (YielderIden::Table, YielderIden::Id),
                 (YielderIden::Table, YielderIden::Address),
             ])
-            .columns([
-                (MinterIden::Table, MinterIden::Id),
-                (MinterIden::Table, MinterIden::TotalValue),
-            ])
+            .columns([(MinterIden::Table, MinterIden::Id)])
+            .column((ProjectIden::Table, ProjectIden::TotalSupply))
             .column((
                 Alias::new("project_implementation"),
                 ImplementationIden::Abi,
@@ -268,8 +267,8 @@ impl PostgresFarming {
                 SnapshotIden::CurrentYielderAbsorption,
                 SnapshotIden::CurrentOffseterAbsorption,
                 SnapshotIden::ProjectAbsorption,
-                SnapshotIden::YielderAbsorption,
                 SnapshotIden::OffseterAbsorption,
+                SnapshotIden::YielderAbsorption,
                 SnapshotIden::Time,
             ])
             .and_where(Expr::col((SnapshotIden::Table, SnapshotIden::YielderId)).eq(yielder))
@@ -309,18 +308,23 @@ impl PostgresFarming {
         let client = self.db_client_pool.clone().get().await?;
 
         let (sql, values) = Query::select()
-            .from(MinterIden::Table)
-            .column((MinterIden::Table, MinterIden::TotalValue))
-            .and_where(Expr::col((MinterIden::Table, MinterIden::ProjectId)).eq(project_id))
+            .from(ProjectIden::Table)
+            .column((ProjectIden::Table, ProjectIden::TotalSupply))
+            .column((MinterIden::Table, MinterIden::UnitPrice))
+            .inner_join(
+                MinterIden::Table,
+                Expr::col((MinterIden::Table, MinterIden::ProjectId))
+                    .equals((ProjectIden::Table, ProjectIden::Id)),
+            )
+            .and_where(Expr::col((ProjectIden::Table, ProjectIden::Id)).eq(project_id))
             .build_postgres(PostgresQueryBuilder);
 
-        match client.query(sql.as_str(), &values.as_params()).await {
-            Ok(res) => Ok(res
-                .iter()
-                .map(|r| r.get(0))
-                .fold(U256::zero(), |acc, x: Option<U256>| {
-                    acc + x.unwrap_or(U256::zero())
-                })),
+        match client.query_one(sql.as_str(), &values.as_params()).await {
+            Ok(res) => {
+                let total_value: U256 = res.get(0);
+                let unit_price: U256 = res.get(1);
+                Ok(total_value * unit_price)
+            }
             Err(e) => {
                 error!("{:#?}", e);
                 Err(PostgresError::TokioPostgresError(e))

@@ -43,3 +43,15 @@ test target:
 # runs cargo clippy project wide
 clippy:
     cargo clippy
+
+# start application database
+start_db: 
+    docker compose -p carbonable-indexer up -d
+
+# installs project stack
+install: start_db && reset run_seeding
+    cargo build
+    
+# deploy application to desired environment
+deploy env=default_env:
+    fly deploy -c fly.{{env}}.toml

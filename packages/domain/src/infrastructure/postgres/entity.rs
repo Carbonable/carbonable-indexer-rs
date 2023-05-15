@@ -3,7 +3,7 @@ use std::fmt::Display;
 use bigdecimal::BigDecimal;
 use postgres_types::{accepts, to_sql_checked, FromSql, ToSql};
 use sea_query::{enum_def, Iden};
-use time::{OffsetDateTime, PrimitiveDateTime};
+use time::{macros::offset, OffsetDateTime, PrimitiveDateTime};
 use uuid::Uuid;
 
 use crate::domain::{crypto::U256, event_source::Event};
@@ -233,6 +233,7 @@ pub struct Offseter {
 }
 
 #[enum_def]
+#[derive(Debug)]
 pub struct Snapshot {
     pub id: Uuid,
     pub previous_time: OffsetDateTime,
@@ -250,9 +251,11 @@ pub struct Snapshot {
 }
 impl From<tokio_postgres::Row> for Snapshot {
     fn from(value: tokio_postgres::Row) -> Self {
+        let previous_time: PrimitiveDateTime = value.get(1);
+        let time: PrimitiveDateTime = value.get(11);
         Self {
             id: value.get(0),
-            previous_time: value.get(1),
+            previous_time: previous_time.assume_offset(offset!(+1)),
             previous_project_absorption: value.get(2),
             previous_offseter_absorption: value.get(3),
             previous_yielder_absorption: value.get(4),
@@ -262,7 +265,7 @@ impl From<tokio_postgres::Row> for Snapshot {
             project_absorption: value.get(8),
             offseter_absorption: value.get(9),
             yielder_absorption: value.get(10),
-            time: value.get(11),
+            time: time.assume_offset(offset!(+1)),
             yielder_id: None,
         }
     }
@@ -280,6 +283,7 @@ pub struct Yielder {
 }
 
 #[enum_def]
+#[derive(Debug)]
 pub struct Provision {
     pub id: Uuid,
     pub amount: U256,
@@ -289,10 +293,12 @@ pub struct Provision {
 
 impl From<tokio_postgres::Row> for Provision {
     fn from(value: tokio_postgres::Row) -> Self {
+        let time: PrimitiveDateTime = value.get(2);
+
         Self {
             id: value.get(0),
             amount: value.get(1),
-            time: value.get(2),
+            time: time.assume_offset(offset!(+1)),
             yielder_id: None,
         }
     }

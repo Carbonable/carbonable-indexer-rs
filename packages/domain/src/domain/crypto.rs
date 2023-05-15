@@ -96,12 +96,17 @@ impl From<usize> for U256 {
 }
 impl From<time::Duration> for U256 {
     fn from(value: time::Duration) -> Self {
-        value.unsigned_abs().as_micros().into()
+        value.unsigned_abs().as_secs().into()
     }
 }
 impl From<std::time::Duration> for U256 {
     fn from(value: std::time::Duration) -> Self {
         value.as_micros().into()
+    }
+}
+impl From<tokio_postgres::Row> for U256 {
+    fn from(value: tokio_postgres::Row) -> Self {
+        U256(crypto_bigint::U256::from_be_slice(value.get(0)))
     }
 }
 impl std::ops::Div for U256 {
