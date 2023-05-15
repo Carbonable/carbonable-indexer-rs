@@ -1,9 +1,6 @@
 use starknet::{
     core::types::FieldElement,
-    providers::jsonrpc::{
-        models::{BlockId, BlockTag},
-        HttpTransport, JsonRpcClient,
-    },
+    providers::jsonrpc::{HttpTransport, JsonRpcClient},
 };
 use time::OffsetDateTime;
 
@@ -31,10 +28,14 @@ use std::sync::Arc;
 use super::{
     get_starknet_rpc_from_env,
     model::{
-        felt_to_u256, get_call_function, parallelize_blockchain_rpc_calls, u256_to_felt, ModelError,
+        felt_to_u256, parallelize_blockchain_rpc_calls, u256_to_felt, ModelError, StarknetValue,
+        StarknetValueResolver,
     },
     portfolio::{get_balance_of, get_slot_of, get_token_id, get_value_of_token_in_slot},
 };
+
+// Bisextiles bitch
+const SECONDS_IN_YEAR: u64 = 31557600;
 
 /// Get cumulated value of tokens in slot for customer
 pub async fn get_value_of(
@@ -58,48 +59,6 @@ pub async fn get_value_of(
     }
     Ok(value)
 }
-/// Get yielder claimable amount for slot in customer
-/// * `provider` - [Arc<JsonRpcClient<HttpTransport>>] - Starknet RPC client
-/// * `address` - [&str] - Yielder contract address
-/// * `wallet` - [&str] - Customer wallet address
-async fn get_yielder_claimable_of(
-    provider: Arc<JsonRpcClient<HttpTransport>>,
-    address: &str,
-    wallet: &str,
-) -> Result<U256, ModelError> {
-    let response = provider
-        .call(
-            get_call_function(
-                &FieldElement::from_hex_be(address).unwrap(),
-                "getClaimableOf",
-                vec![FieldElement::from_hex_be(wallet).unwrap()],
-            ),
-            &BlockId::Tag(BlockTag::Latest),
-        )
-        .await?;
-    Ok(felt_to_u256(*response.first().unwrap()))
-}
-/// Get offseter claimable amount for slot in customer
-/// * `provider` - [Arc<JsonRpcClient<HttpTransport>>] - Starknet RPC client
-/// * `address` - [&str] - Yielder contract address
-/// * `wallet` - [&str] - Customer wallet address
-async fn get_offseter_claimable_of(
-    provider: Arc<JsonRpcClient<HttpTransport>>,
-    address: &str,
-    wallet: &str,
-) -> Result<U256, ModelError> {
-    let response = provider
-        .call(
-            get_call_function(
-                &FieldElement::from_hex_be(address).unwrap(),
-                "getClaimableOf",
-                vec![FieldElement::from_hex_be(wallet).unwrap()],
-            ),
-            &BlockId::Tag(BlockTag::Latest),
-        )
-        .await?;
-    Ok(felt_to_u256(*response.first().unwrap()))
-}
 
 async fn customer_farming_data(
     provider: Arc<JsonRpcClient<HttpTransport>>,
@@ -118,20 +77,56 @@ async fn customer_farming_data(
     if U256::zero() == value {
         return Ok(CustomerGlobalData::default());
     }
+    let calldata = [
+        (
+            data.offseter_address.to_string(),
+            "getDepositedOf",
+            vec![FieldElement::from_hex_be(&wallet).unwrap()],
+        ),
+        (
+            data.yielder_address.to_string(),
+            "getDepositedOf",
+            vec![FieldElement::from_hex_be(&wallet).unwrap()],
+        ),
+        (
+            data.offseter_address.to_string(),
+            "getClaimableOf",
+            vec![FieldElement::from_hex_be(&wallet).unwrap()],
+        ),
+        (
+            data.yielder_address.to_string(),
+            "getClaimableOf",
+            vec![FieldElement::from_hex_be(&wallet).unwrap()],
+        ),
+    ];
+    let blockchain_data =
+        parallelize_blockchain_rpc_calls(provider.clone(), calldata.to_vec()).await?;
 
-    let releaseable_of =
-        get_offseter_claimable_of(provider.clone(), &data.offseter_address, &wallet).await?;
-    let claimable_of =
-        get_yielder_claimable_of(provider.clone(), &data.yielder_address, &wallet).await?;
+    let offseter_deposited = felt_to_u256(*blockchain_data[0].clone().first().unwrap());
+    let yielder_deposited = felt_to_u256(*blockchain_data[1].clone().first().unwrap());
+    let offseter_claimable = felt_to_u256(*blockchain_data[2].clone().first().unwrap());
+    let yielder_claimable = felt_to_u256(*blockchain_data[3].clone().first().unwrap());
 
+    let total_deposited_value = offseter_deposited + yielder_deposited;
     Ok(CustomerGlobalData {
-        total_deposited: SlotValue::from_blockchain(value, data.value_decimals),
-        total_released: Erc20::from_blockchain(
-            releaseable_of,
+        total_deposited_value: SlotValue::from_blockchain(
+            total_deposited_value,
+            data.value_decimals,
+        ),
+        total_investment: Erc20::from_blockchain(
+            total_deposited_value * data.unit_price,
             data.payment_decimals,
             data.payment_symbol.clone(),
         ),
-        total_claimable: Mass::<U256>::from_blockchain(claimable_of, data.ton_equivalent),
+        total_yielder_claimable: Erc20::from_blockchain(
+            yielder_claimable,
+            data.payment_decimals,
+            data.payment_symbol.clone(),
+        ),
+        total_offseter_claimable: Mass::<U256>::from_blockchain(
+            offseter_claimable,
+            data.ton_equivalent,
+        ),
     })
 }
 
@@ -196,15 +191,17 @@ fn get_project_current_apr(
     };
 
     let diff_time = snapshot.time - snapshot.previous_time;
-    let apr = U256(crypto_bigint::U256::from_u8(100))
-        * provision.amount
-        * (U256(crypto_bigint::U256::from_u16(365))
-            * U256(crypto_bigint::U256::from_u8(24))
-            * U256(crypto_bigint::U256::from_u32(3600)))
-        / U256::from(diff_time)
-        / total_value;
 
-    Ok(ProjectApr::Value(apr))
+    let numerator = (U256(crypto_bigint::U256::from_u8(100))
+        * provision.amount
+        * snapshot.project_absorption
+        * U256(crypto_bigint::U256::from_u64(SECONDS_IN_YEAR)))
+        * U256(crypto_bigint::U256::from_u32(1000));
+    let denominator = total_value * snapshot.yielder_absorption * (U256::from(diff_time));
+
+    let apr = numerator / denominator;
+
+    Ok(ProjectApr::Value(apr.to_big_decimal(3)))
 }
 
 /// Get project status
@@ -223,7 +220,7 @@ fn get_project_status(farming_data: &CompleteFarmingData) -> ProjectStatus {
 
 /// Data required for details to project on farming index page
 pub async fn get_unconnected_project_data(
-    data: CustomerGlobalDataForComputation,
+    global_data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
     snapshots: Vec<Snapshot>,
     provisions: Vec<Provision>,
@@ -233,49 +230,43 @@ pub async fn get_unconnected_project_data(
     let status = get_project_status(&farming_data);
 
     let provider = Arc::new(get_starknet_rpc_from_env()?);
+    let values = [
+        (
+            global_data.offseter_address.to_string(),
+            "getTotalDeposited",
+            vec![],
+        ),
+        (
+            global_data.yielder_address.to_string(),
+            "getTotalDeposited",
+            vec![],
+        ),
+        (
+            global_data.project_address.to_string(),
+            "getCurrentAbsorption",
+            vec![u256_to_felt(&global_data.slot), FieldElement::ZERO],
+        ),
+    ];
 
-    let total_offseted = felt_to_u256(
-        *provider
-            .call(
-                get_call_function(
-                    &FieldElement::from_hex_be(data.offseter_address.as_str()).unwrap(),
-                    "getTotalDeposited",
-                    vec![],
-                ),
-                &BlockId::Tag(BlockTag::Latest),
-            )
-            .await?
-            .first()
-            .unwrap(),
-    );
-    let total_yielded = felt_to_u256(
-        *provider
-            .call(
-                get_call_function(
-                    &FieldElement::from_hex_be(data.yielder_address.as_str()).unwrap(),
-                    "getTotalDeposited",
-                    vec![],
-                ),
-                &BlockId::Tag(BlockTag::Latest),
-            )
-            .await?
-            .first()
-            .unwrap(),
-    );
-    // Asserted in controller that absorptions are not empty
-    let last_absorptions = farming_data.final_absorption();
+    let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
+    let total_offseted: U256 = StarknetValue::new(data[0].clone()).resolve("u256").into();
+    let total_yielded: U256 = StarknetValue::new(data[1].clone()).resolve("u256").into();
+    let current_absorption: U256 = StarknetValue::new(data[2].clone()).resolve("u256").into();
 
     Ok(UnconnectedFarmingData {
         apr,
         status,
         tvl: Erc20::from_blockchain(
-            data.unit_price * (total_offseted + total_yielded),
+            global_data.unit_price * (total_offseted + total_yielded),
             farming_data.payment_decimals,
             farming_data.payment_symbol,
         )
         .into(),
-        total_removal: Mass::<U256>::from_blockchain(last_absorptions, farming_data.ton_equivalent)
-            .into(),
+        total_removal: Mass::<U256>::from_blockchain(
+            current_absorption,
+            farming_data.ton_equivalent,
+        )
+        .into(),
     })
 }
 
@@ -395,6 +386,11 @@ pub async fn get_customer_details_project_data(
         (
             project_data.yielder_address.to_string(),
             "getTotalDeposited",
+            vec![],
+        ),
+        (
+            project_data.offseter_address.to_string(),
+            "getMinClaimable",
             vec![],
         ),
     ];

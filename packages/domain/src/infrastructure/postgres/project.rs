@@ -209,7 +209,7 @@ impl PostgresProject {
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
         let total_supply_key = match data.get("totalSupply") {
-            None => "tokenSupplyInSlot",
+            None => "totalValue",
             Some(_) => "totalSupply",
         };
         let value_decimals = match data.get_mut("valueDecimals") {

@@ -216,7 +216,7 @@ async fn map_multicall_to_hashmap(
         ),
         (
             address.to_string(),
-            "tokenSupplyInSlot",
+            "totalValue",
             vec![slot_felt, FieldElement::ZERO],
         ),
         (
@@ -251,7 +251,7 @@ async fn map_multicall_to_hashmap(
     let mut slot_uri = StarknetValue::new(data[0].clone());
     slot_data.insert("slotURI".to_string(), slot_uri.clone());
     slot_data.insert(
-        "tokenSupplyInSlot".to_string(),
+        "totalValue".to_string(),
         StarknetValue::new(data[1].clone()),
     );
     slot_data.insert(

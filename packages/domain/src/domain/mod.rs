@@ -58,6 +58,12 @@ impl Erc20 {
 impl std::ops::AddAssign for Erc20 {
     fn add_assign(&mut self, rhs: Self) {
         self.value = self.value + rhs.value;
+        if self.decimals == 0 {
+            self.decimals = rhs.decimals;
+        }
+        if self.symbol.is_empty() {
+            self.symbol = rhs.symbol;
+        }
     }
 }
 
@@ -71,6 +77,12 @@ pub struct Mass<T> {
 
 impl Mass<U256> {
     pub fn from_blockchain(value: U256, ton_equivalent: U256) -> Self {
+        if U256::zero() == ton_equivalent {
+            return Self {
+                value: value * U256(crypto_bigint::U256::from_u64(1000000)),
+            };
+        }
+
         Self {
             // Convert to grams. For the moment we store the values in grams but it might change
             value: (value * U256(crypto_bigint::U256::from_u64(1000000))) / ton_equivalent,
