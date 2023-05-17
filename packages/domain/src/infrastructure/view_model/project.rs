@@ -5,7 +5,8 @@ use crate::infrastructure::postgres::entity::ErcImplementation;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UriViewModel {
-    pub uri: Uuid,
+    pub id: Option<Uuid>,
+    pub uri: String,
     pub data: serde_json::Value,
 }
 
@@ -15,7 +16,7 @@ pub struct Project {
     pub(crate) address: String,
     pub(crate) name: String,
     pub(crate) slug: String,
-    pub(crate) uri: UriViewModel,
+    pub uri: UriViewModel,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -36,8 +37,9 @@ impl From<tokio_postgres::Row> for ProjectViewModel {
                 name: value.get(2),
                 slug: value.get(3),
                 uri: UriViewModel {
-                    uri: value.get(5),
-                    data: value.get(6),
+                    id: value.get(5),
+                    uri: value.get(6),
+                    data: value.get(7),
                 },
             }),
             ErcImplementation::Erc3525 => Self::Erc3525(Project {
@@ -46,8 +48,9 @@ impl From<tokio_postgres::Row> for ProjectViewModel {
                 name: value.get(2),
                 slug: value.get(3),
                 uri: UriViewModel {
-                    uri: value.get(5),
-                    data: value.get(6),
+                    id: value.get(5),
+                    uri: value.get(6),
+                    data: value.get(7),
                 },
             }),
         }

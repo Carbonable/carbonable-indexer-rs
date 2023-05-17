@@ -22,6 +22,8 @@ pub struct ProjectWithMinterAndPaymentViewModel {
     pub payment_decimals: U256,
     pub abi: serde_json::Value,
     pub minter_abi: serde_json::Value,
+    pub yielder_address: String,
+    pub offseter_address: String,
 }
 
 impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
@@ -43,6 +45,8 @@ impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
             payment_decimals: value.get(12),
             abi: value.get(13),
             minter_abi: value.get(14),
+            yielder_address: value.get(15),
+            offseter_address: value.get(16),
         }
     }
 }
@@ -92,6 +96,7 @@ pub enum ProjectWithTokens {
         tokens: Vec<Erc3525Token>,
         #[serde(skip_serializing)]
         total_amount: U256,
+        total_deposited_value: HumanComprehensibleU256<U256>,
         abi: PortfolioAbi,
     },
 }

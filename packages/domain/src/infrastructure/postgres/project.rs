@@ -20,7 +20,10 @@ use crate::domain::crypto::U256;
 use crate::infrastructure::starknet::model::StarknetValue;
 
 use super::{
-    entity::{ErcImplementation, ImplementationIden, MinterIden, PaymentIden, Project, UriIden},
+    entity::{
+        ErcImplementation, ImplementationIden, MinterIden, OffseterIden, PaymentIden, Project,
+        UriIden, YielderIden,
+    },
     PostgresError,
 };
 
@@ -78,6 +81,7 @@ impl PostgresProject {
             ])
             .columns([
                 (UriIden::Table, UriIden::Id),
+                (UriIden::Table, UriIden::Uri),
                 (UriIden::Table, UriIden::Data),
             ])
             .from(ProjectIden::Table)
@@ -165,6 +169,8 @@ impl PostgresProject {
             ])
             .column((ImplementationIden::Table, ImplementationIden::Abi))
             .column((Alias::new("minter_implementation"), ImplementationIden::Abi))
+            .column((YielderIden::Table, YielderIden::Address))
+            .column((OffseterIden::Table, OffseterIden::Address))
             .from(ProjectIden::Table)
             .left_join(
                 MinterIden::Table,
@@ -180,6 +186,16 @@ impl PostgresProject {
                 ImplementationIden::Table,
                 Expr::col((ProjectIden::Table, ProjectIden::Address))
                     .equals((ImplementationIden::Table, ImplementationIden::Address)),
+            )
+            .left_join(
+                YielderIden::Table,
+                Expr::col((YielderIden::Table, YielderIden::ProjectId))
+                    .equals((ProjectIden::Table, ProjectIden::Id)),
+            )
+            .left_join(
+                OffseterIden::Table,
+                Expr::col((OffseterIden::Table, OffseterIden::ProjectId))
+                    .equals((ProjectIden::Table, ProjectIden::Id)),
             )
             .join_as(
                 sea_query::JoinType::LeftJoin,

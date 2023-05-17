@@ -1,6 +1,6 @@
 use deadpool_postgres::Transaction;
 use deadpool_postgres::{GenericClient, Object, Pool};
-use sea_query::{Expr, PostgresQueryBuilder, Query};
+use sea_query::{Expr, Func, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use serde_json::json;
 use time::OffsetDateTime;
@@ -15,7 +15,9 @@ use crate::domain::{
 };
 use std::sync::Arc;
 
-use super::entity::{EventStoreIden, ProvisionIden, Snapshot, SnapshotIden, YielderIden};
+use super::entity::{
+    EventStoreIden, ProjectIden, ProvisionIden, Snapshot, SnapshotIden, YielderIden,
+};
 use super::{entity::CustomerTokenIden, PostgresError};
 
 #[derive(Debug)]
@@ -161,6 +163,54 @@ pub async fn update_token_owner<'a>(
         Err(e) => {
             error!("project.transfer.update: {:#?}", e);
             Err(PostgresError::from(e))
+        }
+    }
+}
+
+/// From blockchain `Migration` event migrates customer token
+///
+/// * tx: [`deadpool_postgres::Object`]
+/// * project_address: [`&str`]
+/// * from_project_address: [`&str`]
+/// * customer_address: [`&str`]
+/// * token_id: [`U256`]
+/// * new_token_id: [`U256`]
+/// * slot: [`U256`]
+/// * value: [`U256`]
+///
+pub async fn migrate_customer_token<'a>(
+    tx: &Transaction<'a>,
+    project_address: &str,
+    from_project_address: &str,
+    customer_address: &str,
+    token_id: &U256,
+    new_token_id: &U256,
+    slot: &U256,
+    value: &U256,
+) -> Result<(), PostgresError> {
+    let (sql, values) = Query::update()
+        .table(CustomerTokenIden::Table)
+        .and_where(
+            Expr::col((CustomerTokenIden::Table, CustomerTokenIden::Address)).eq(customer_address),
+        )
+        .and_where(
+            Expr::col((CustomerTokenIden::Table, CustomerTokenIden::ProjectAddress))
+                .eq(from_project_address),
+        )
+        .and_where(Expr::col((CustomerTokenIden::Table, CustomerTokenIden::TokenId)).eq(token_id))
+        .values([
+            (CustomerTokenIden::ProjectAddress, project_address.into()),
+            (CustomerTokenIden::TokenId, new_token_id.into()),
+            (CustomerTokenIden::Slot, slot.into()),
+            (CustomerTokenIden::Value, value.into()),
+        ])
+        .build_postgres(PostgresQueryBuilder);
+
+    match tx.execute(&sql, &values.as_params()).await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            error!("minter.migration.error : {:#?}", e);
+            Err(PostgresError::TokioPostgresError(e))
         }
     }
 }
@@ -348,5 +398,38 @@ pub async fn get_yielder_id_from_address<'a>(
             Some(yielder_id)
         }
         Err(_) => None,
+    }
+}
+
+/// Update project total_supply when token is migrated
+/// * tx: [`deadpool_postgres::Object`]
+/// * contract_address: [`&str`]
+/// * amount: [`U256`]
+///
+pub async fn update_project_total_value<'a>(
+    tx: &Transaction<'a>,
+    project_address: &str,
+    slot: &U256,
+    total_supply: &U256,
+) -> Result<(), PostgresError> {
+    let (sql, values) = Query::update()
+        .table(ProjectIden::Table)
+        .and_where(
+            Expr::expr(Func::lower(Expr::col((
+                ProjectIden::Table,
+                ProjectIden::Address,
+            ))))
+            .eq(Func::lower(project_address)),
+        )
+        .and_where(Expr::col((ProjectIden::Table, ProjectIden::Slot)).eq(slot))
+        .values([(ProjectIden::TotalSupply, total_supply.into())])
+        .build_postgres(PostgresQueryBuilder);
+
+    match tx.execute(&sql, &values.as_params()).await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            error!("minter.migration.error : {:#?}", e);
+            Err(PostgresError::TokioPostgresError(e))
+        }
     }
 }

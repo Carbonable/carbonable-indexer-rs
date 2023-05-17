@@ -1,4 +1,4 @@
-use crate::infrastructure::view_model::customer::CustomerToken;
+use crate::{domain::crypto::U256, infrastructure::view_model::customer::CustomerToken};
 
 use super::{entity::CustomerTokenIden, PostgresError};
 use deadpool_postgres::Pool;
@@ -28,6 +28,7 @@ impl PostgresCustomer {
         &self,
         wallet: &str,
         project_address: &str,
+        slot: &U256,
     ) -> Result<Vec<CustomerToken>, PostgresError> {
         let client = self.db_client_pool.get().await?;
         let (sql, values) = Query::select()
@@ -51,6 +52,7 @@ impl PostgresCustomer {
                 Expr::col((CustomerTokenIden::Table, CustomerTokenIden::ProjectAddress))
                     .eq(project_address),
             )
+            .and_where(Expr::col((CustomerTokenIden::Table, CustomerTokenIden::Slot)).eq(slot))
             .build_postgres(PostgresQueryBuilder);
         match client.query(&sql, &values.as_params()).await {
             Ok(res) => Ok(res.into_iter().map(|row| row.into()).collect()),

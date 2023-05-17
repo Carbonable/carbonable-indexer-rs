@@ -171,6 +171,7 @@ pub async fn load_erc_3525_portfolio(
 
         let token_uri = get_token_uri(&provider, address, &token_id).await?;
         let value: U256 = get_value_of_token_in_slot(&provider, address, &token_id).await?;
+        // let value: U256 = StarknetValue::new(data[1].clone()).resolve("u256").into();
 
         tokens.push(Some(Erc3525Token {
             token_id,

@@ -34,3 +34,10 @@ Or mainnet
 ```shell
 $ just deploy mainnet
 ```
+
+Write migration:
+```shell
+$ cargo install sea-orm-cli
+$ cd packages
+$ sea-orm-cli migrate generate ${name_of_the_migration}
+```

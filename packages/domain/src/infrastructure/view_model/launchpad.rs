@@ -36,6 +36,7 @@ impl From<tokio_postgres::Row> for LaunchpadProject {
                 name: value.get(2),
                 slug: value.get(3),
                 uri: super::project::UriViewModel {
+                    id: None,
                     uri: value.get(5),
                     data: value.get(6),
                 },

@@ -55,3 +55,7 @@ install: start_db && reset run_seeding
 # deploy application to desired environment
 deploy env=default_env:
     fly deploy -c fly.{{env}}.toml
+
+# connect to psql
+db_connect:
+    docker exec -ti carbonable-indexer-db-1 psql -W carbonable_indexer carbonable

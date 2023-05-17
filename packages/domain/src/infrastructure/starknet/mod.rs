@@ -59,8 +59,8 @@ impl From<String> for StarknetEnv {
 /// * wallet_address - [`&mut String`] The wallet address.
 ///
 pub fn ensure_starknet_wallet(wallet_address: &mut String) {
-    if 65 == wallet_address.len() {
-        *wallet_address = format!("0x0{}", &wallet_address[2..]);
+    if 66 != wallet_address.len() {
+        *wallet_address = format!("0x{:0>64}", &wallet_address[2..]);
     }
 }
 
@@ -133,5 +133,34 @@ pub async fn get_proxy_abi(
         starknet::providers::jsonrpc::models::ContractClass::Legacy(c) => {
             Ok(serde_json::to_value(c.abi)?)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::infrastructure::starknet::ensure_starknet_wallet;
+
+    #[test]
+    fn test_ensure_wallet() {
+        let mut wallet =
+            String::from("0x7a108d65e75742c7a0d149e97622c27ad05dec93fd5e952f1d53424128a9ee");
+        ensure_starknet_wallet(&mut wallet);
+        let expected = "0x007a108d65e75742c7a0d149e97622c27ad05dec93fd5e952f1d53424128a9ee";
+
+        assert_eq!(expected.to_string(), wallet);
+
+        let mut wallet =
+            String::from("0x63675fA1ECEa10063722E61557ED7f49ED2503D6Cdd74F4B31E9770B473650C");
+        ensure_starknet_wallet(&mut wallet);
+        let expected = "0x063675fA1ECEa10063722E61557ED7f49ED2503D6Cdd74F4B31E9770B473650C";
+
+        assert_eq!(expected.to_string(), wallet);
+
+        let mut wallet =
+            String::from("0x8d65e75742c7a0d149e97622c27ad05dec93fd5e952f1d53424128a9ee");
+        ensure_starknet_wallet(&mut wallet);
+        let expected = "0x0000008d65e75742c7a0d149e97622c27ad05dec93fd5e952f1d53424128a9ee";
+
+        assert_eq!(expected.to_string(), wallet);
     }
 }

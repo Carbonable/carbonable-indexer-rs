@@ -371,7 +371,7 @@ impl CustomerDetailsProjectData {
         project: &CompleteFarmingData,
         farming_data: &CustomerGlobalDataForComputation,
         value_of: &U256,
-        customer_tokens: Vec<CustomerToken>,
+        customer_tokens: &mut [CustomerToken],
     ) -> &mut Self {
         let current_absorption: U256 = StarknetValue::new(data[0].clone()).resolve("u256").into();
         let offseter_deposited_of: U256 =

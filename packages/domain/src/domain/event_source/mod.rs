@@ -14,7 +14,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::OffsetDateTime;
 
-use crate::infrastructure::postgres::PostgresError;
+use crate::infrastructure::{
+    postgres::PostgresError,
+    starknet::{model::ModelError, SequencerError},
+};
 
 use self::{
     minter::MinterEvents, offseter::OffseterEvents, project::ProjectEvents, yielder::YielderEvents,
@@ -152,6 +155,10 @@ pub enum DomainError {
     NotAvailable,
     #[error("contract with address {0} not found inside db")]
     ContractNotFound(String),
+    #[error(transparent)]
+    SequencerError(#[from] SequencerError),
+    #[error(transparent)]
+    ModelError(#[from] ModelError),
 }
 
 #[async_trait::async_trait]

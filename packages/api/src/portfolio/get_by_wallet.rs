@@ -2,12 +2,13 @@ use serde::Serialize;
 
 use actix_web::{web, HttpResponse, Responder};
 use carbonable_domain::{
-    domain::{crypto::U256, project::ProjectError},
+    domain::{crypto::U256, project::ProjectError, SlotValue},
     infrastructure::{
         flatten,
         postgres::{entity::ErcImplementation, project::PostgresProject},
         starknet::{
-            ensure_starknet_wallet,
+            ensure_starknet_wallet, get_starknet_rpc_from_env,
+            model::{parallelize_blockchain_rpc_calls, StarknetValue, StarknetValueResolver},
             portfolio::{load_erc_3525_portfolio, load_erc_721_portfolio},
         },
         view_model::portfolio::{
@@ -15,6 +16,8 @@ use carbonable_domain::{
         },
     },
 };
+use starknet::core::types::FieldElement;
+use std::sync::Arc;
 
 use crate::{
     common::{ApiError, ServerResponse},
@@ -61,6 +64,24 @@ async fn aggregate_3525_tokens(
         return Ok(None);
     }
 
+    let provider = Arc::new(get_starknet_rpc_from_env()?);
+    let values = [
+        (
+            project.yielder_address.to_string(),
+            "getDepositedOf",
+            vec![FieldElement::from_hex_be(&wallet).unwrap()],
+        ),
+        (
+            project.offseter_address.to_string(),
+            "getDepositedOf",
+            vec![FieldElement::from_hex_be(&wallet).unwrap()],
+        ),
+    ];
+
+    let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
+    let total_offseted: U256 = StarknetValue::new(data[0].clone()).resolve("u256").into();
+    let total_yielded: U256 = StarknetValue::new(data[1].clone()).resolve("u256").into();
+
     let value = tokens
         .iter()
         .flatten()
@@ -74,6 +95,11 @@ async fn aggregate_3525_tokens(
         minter_address: project.minter_address,
         tokens: tokens.into_iter().flatten().collect(),
         total_amount,
+        total_deposited_value: SlotValue::from_blockchain(
+            total_offseted + total_yielded,
+            project.value_decimals,
+        )
+        .into(),
         abi: PortfolioAbi {
             project: project.abi,
             minter: project.minter_abi,

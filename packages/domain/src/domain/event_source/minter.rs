@@ -1,9 +1,20 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use apibara_core::starknet::v1alpha2::FieldElement;
 use deadpool_postgres::Transaction;
 use serde::{Deserialize, Serialize};
 use starknet::macros::selector;
+
+use crate::{
+    domain::crypto::U256,
+    infrastructure::{
+        postgres::event_source::{migrate_customer_token, update_project_total_value},
+        starknet::{
+            get_starknet_rpc_from_env,
+            model::{parallelize_blockchain_rpc_calls, u256_to_felt},
+        },
+    },
+};
 
 use super::{
     event_bus::Consumer, get_event, to_filters, DomainError, DomainEvent, Event, Filterable,
@@ -94,12 +105,77 @@ impl Consumer<Transaction<'_>> for MinterMigrationEventConsumer {
         matches!(event, Event::Minter(MinterEvents::Migration))
     }
 
-    async fn consume(
-        &self,
-        _event: &DomainEvent,
-        _txn: &mut Transaction,
-    ) -> Result<(), DomainError> {
+    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
         // Migration(address: felt, tokenId: u256, newTokenId: u256, slot: u256, value: u256);
+        // Catch migration to update total_supply on project if
+        let minter_721 = event
+            .metadata
+            .get("from_address")
+            .expect("should have from address");
+        let customer_address = event.payload.get("0").expect("should have slot");
+        let token_id = U256::from(
+            FieldElement::from_hex(event.payload.get("1").expect("should have token_id")).unwrap(),
+        );
+        let new_token_id = U256::from(
+            FieldElement::from_hex(event.payload.get("3").expect("should have new_token_id"))
+                .unwrap(),
+        );
+        let slot = U256::from(
+            FieldElement::from_hex(event.payload.get("5").expect("should have slot")).unwrap(),
+        );
+        let value = U256::from(
+            FieldElement::from_hex(event.payload.get("7").expect("should have value")).unwrap(),
+        );
+
+        let provider = Arc::new(get_starknet_rpc_from_env()?);
+
+        let data = parallelize_blockchain_rpc_calls(
+            provider.clone(),
+            [
+                (minter_721.to_string(), "getMigrationTargetAddress", vec![]),
+                (minter_721.to_string(), "getMigrationSourceAddress", vec![]),
+            ]
+            .to_vec(),
+        )
+        .await?;
+        let project_address =
+            FieldElement::from_bytes(&data[0].clone().first().unwrap().to_bytes_be());
+        let from_project_address =
+            FieldElement::from_bytes(&data[1].clone().first().unwrap().to_bytes_be());
+
+        let data = parallelize_blockchain_rpc_calls(
+            provider.clone(),
+            [(
+                project_address.to_hex(),
+                "totalValue",
+                vec![
+                    u256_to_felt(&slot),
+                    starknet::core::types::FieldElement::ZERO,
+                ],
+            )]
+            .to_vec(),
+        )
+        .await?;
+
+        let total_value = U256::from(FieldElement::from_bytes(
+            &data[0].clone().first().unwrap().to_bytes_be(),
+        ));
+
+        let _ =
+            update_project_total_value(txn, &project_address.to_hex(), &slot, &total_value).await?;
+
+        let _ = migrate_customer_token(
+            txn,
+            &project_address.to_hex(),
+            &from_project_address.to_hex(),
+            customer_address,
+            &token_id,
+            &new_token_id,
+            &slot,
+            &value,
+        )
+        .await?;
+
         // event not handled at the moment but it will be stored in database later on.
         Ok(())
     }

@@ -6,10 +6,7 @@ use time::OffsetDateTime;
 
 use crate::infrastructure::{
     flatten,
-    postgres::{
-        customer::PostgresCustomer,
-        entity::{Provision, Snapshot},
-    },
+    postgres::entity::{Provision, Snapshot},
     view_model::{
         customer::CustomerToken,
         farming::{
@@ -43,6 +40,7 @@ pub async fn get_value_of(
     address: String,
     slot: U256,
     wallet: String,
+    customer_tokens: &mut [CustomerToken],
 ) -> Result<U256, ModelError> {
     let balance = get_balance_of(&provider.clone(), &address.clone(), &wallet.clone()).await?;
     let mut value = U256::zero();
@@ -54,9 +52,15 @@ pub async fn get_value_of(
         }
 
         let value_in_slot = get_value_of_token_in_slot(&provider, &address, &token_id).await?;
+        for t in customer_tokens.iter_mut() {
+            if t.token_id == token_id {
+                t.value = value_in_slot;
+            }
+        }
 
         value += value_in_slot;
     }
+
     Ok(value)
 }
 
@@ -64,19 +68,7 @@ async fn customer_farming_data(
     provider: Arc<JsonRpcClient<HttpTransport>>,
     wallet: String,
     data: CustomerGlobalDataForComputation,
-    _customer_tokens: Vec<CustomerToken>,
 ) -> Result<CustomerGlobalData, ModelError> {
-    let value = get_value_of(
-        provider.clone(),
-        data.project_address.to_string(),
-        data.project_slot,
-        wallet.clone(),
-    )
-    .await?;
-
-    if U256::zero() == value {
-        return Ok(CustomerGlobalData::default());
-    }
     let calldata = [
         (
             data.offseter_address.to_string(),
@@ -135,20 +127,14 @@ async fn customer_farming_data(
 pub async fn get_customer_global_farming_data(
     wallet: String,
     addresses: Vec<CustomerGlobalDataForComputation>,
-    customer_model: &PostgresCustomer,
 ) -> Result<DisplayableCustomerGlobalData, ModelError> {
     let mut handles = vec![];
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     for data in addresses.into_iter() {
         let provider = provider.clone();
         let wallet = wallet.to_string();
-        let customer_tokens = customer_model
-            .get_customer_tokens(&wallet, &data.project_address)
-            .await
-            .map_err(|_| ModelError::FailedToFetchCustomerTokens)?;
-        let handle = tokio::spawn(async move {
-            customer_farming_data(provider, wallet, data, customer_tokens).await
-        });
+        let handle =
+            tokio::spawn(async move { customer_farming_data(provider, wallet, data).await });
         handles.push(flatten(handle));
     }
     let customer_global_data = futures::future::try_join_all(handles).await;
@@ -275,7 +261,7 @@ pub async fn get_customer_listing_project_data(
     project_data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
     wallet: &str,
-    _customer_tokens: Vec<CustomerToken>,
+    customer_tokens: &mut [CustomerToken],
 ) -> Result<CustomerListingProjectData, ModelError> {
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     let values = [
@@ -313,6 +299,7 @@ pub async fn get_customer_listing_project_data(
         project_data.project_address.to_string(),
         project_data.project_slot,
         wallet.to_string(),
+        customer_tokens,
     )
     .await?;
 
@@ -332,7 +319,7 @@ pub async fn get_customer_details_project_data(
     snapshots: Vec<Snapshot>,
     provisions: Vec<Provision>,
     total_value: U256,
-    customer_tokens: Vec<CustomerToken>,
+    customer_tokens: &mut [CustomerToken],
 ) -> Result<CustomerDetailsProjectData, ModelError> {
     let mut customer_details_project_data = CustomerDetailsProjectData::default();
 
@@ -400,6 +387,7 @@ pub async fn get_customer_details_project_data(
         project_data.project_address.to_string(),
         project_data.project_slot,
         wallet.to_string(),
+        customer_tokens,
     )
     .await?;
     let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
