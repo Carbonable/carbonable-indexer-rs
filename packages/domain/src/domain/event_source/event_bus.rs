@@ -1,6 +1,6 @@
 use deadpool_postgres::{Pool, Transaction};
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error};
 
 use crate::infrastructure::postgres::event_source::insert_last_domain_event;
 
@@ -71,8 +71,14 @@ impl EventBus<Pool, Box<dyn for<'a> Consumer<Transaction<'a>>>> {
             }
         }
 
-        let _ = insert_last_domain_event(&tx, event, metadata).await;
-        let _ = &tx.commit().await?;
+        // Rollback transaction if storing domain event fails
+        match insert_last_domain_event(&tx, event, metadata).await {
+            Ok(_) => &tx.commit().await?,
+            Err(err) => {
+                error!("error while commiting to db : {:#?}", err);
+                &tx.rollback().await?
+            }
+        };
 
         Ok(())
     }
