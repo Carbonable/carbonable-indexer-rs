@@ -42,5 +42,6 @@ deadpool = "0.9.5"
 sea-query-postgres = { version = "0.2.0", features = ["with-json", "with-uuid", "postgres-array", "with-bigdecimal", "with-time"] }
 sea-orm-migration = { version = "0.11.1", features = ["sqlx-postgres", "runtime-tokio-rustls"] }
 sea-query-binder = { version = "0.3.0", features = ["with-uuid", "with-json", "postgres-array", "with-bigdecimal", "with-time", "runtime-tokio-rustls", "sqlx-postgres"] }
+sqlx = { version = "0.6.3", features = ["postgres", "macros", "uuid", "chrono", "time", "bigdecimal", "json", "runtime-tokio-rustls"]}
 url = "2.3.1"
 pbjson-types = "0.5.1"

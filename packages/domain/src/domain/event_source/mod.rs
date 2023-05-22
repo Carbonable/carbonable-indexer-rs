@@ -11,6 +11,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use sqlx::Postgres;
 use thiserror::Error;
 use time::OffsetDateTime;
 
@@ -25,10 +26,10 @@ use self::{
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DomainEvent {
-    pub(crate) id: String,
-    pub(crate) metadata: HashMap<String, String>,
-    pub(crate) payload: HashMap<String, String>,
-    pub(crate) r#type: Event,
+    pub id: String,
+    pub metadata: sqlx::types::Json<HashMap<String, String>>,
+    pub payload: sqlx::types::Json<HashMap<String, String>>,
+    pub r#type: Event,
 }
 impl DomainEvent {
     pub fn with_metadata(mut self, metadata: &BlockMetadata) -> Self {
@@ -53,6 +54,21 @@ impl BlockMetadata {
     pub fn get_block(&self) -> u64 {
         self.number
     }
+
+    pub fn from_hashmap(value: &sqlx::types::Json<HashMap<String, String>>) -> Self {
+        Self {
+            hash: value
+                .get("block_hash")
+                .expect("should have block_hash")
+                .to_string(),
+            number: u64::from_str_radix(
+                value.get("block_number").expect("should have block_number"),
+                10,
+            )
+            .expect("cannot convert string to u64"),
+            timestamp: time::OffsetDateTime::now_utc(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +77,14 @@ pub enum Event {
     Minter(MinterEvents),
     Offseter(OffseterEvents),
     Yielder(YielderEvents),
+}
+
+impl<'r> sqlx::Decode<'r, Postgres> for Event {
+    fn decode(
+        value: <Postgres as sqlx::database::HasValueRef<'r>>::ValueRef,
+    ) -> Result<Self, sqlx::error::BoxDynError> {
+        Ok(Self::from(value.as_str()?))
+    }
 }
 
 impl From<Event> for &str {

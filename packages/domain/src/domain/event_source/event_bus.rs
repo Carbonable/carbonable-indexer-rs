@@ -82,4 +82,22 @@ impl EventBus<Pool, Box<dyn for<'a> Consumer<Transaction<'a>>>> {
 
         Ok(())
     }
+
+    pub async fn replay_events(&self, event: &DomainEvent) -> Result<(), DomainError> {
+        let mut client = self.client_pool.clone().get().await?;
+        let mut tx = client.transaction().await?;
+
+        for consumer in &self.consumers {
+            if consumer.can_consume(&event.r#type) {
+                debug!(
+                    "Dispatching event: {:?} with id : {:?}",
+                    &event.r#type, &event.id
+                );
+                consumer.consume(event, &mut tx).await?;
+            }
+        }
+
+        let _ = &tx.commit().await?;
+        Ok(())
+    }
 }

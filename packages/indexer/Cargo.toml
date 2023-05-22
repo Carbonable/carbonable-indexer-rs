@@ -4,6 +4,31 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[[bin]]
+name = "carbonable-indexer-index"
+path = "src/bin/index.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "carbonable-indexer-seed"
+path = "src/bin/seed.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "carbonable-indexer-reset-event-store"
+path = "src/bin/reset_event_source.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "carbonable-indexer-event-source"
+path = "src/bin/event_source.rs"
+test = false
+bench = false
+
+
 [dependencies]
 carbonable-domain.workspace = true
 apibara-sdk.workspace = true
@@ -33,4 +58,5 @@ deadpool.workspace = true
 sea-query-postgres.workspace = true
 sea-orm-migration.workspace = true
 sea-query-binder.workspace = true
+sqlx.workspace = true
 pbjson-types.workspace = true

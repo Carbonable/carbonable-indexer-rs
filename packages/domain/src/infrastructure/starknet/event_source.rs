@@ -56,8 +56,8 @@ impl DomainEvent {
 
         DomainEvent {
             id: format!("{}_{}", felt, version),
-            metadata,
-            payload,
+            metadata: sqlx::types::Json(metadata),
+            payload: sqlx::types::Json(payload),
             r#type: event.expect("event should not be none at this point"),
         }
     }

@@ -7,7 +7,7 @@ pub struct Args {
     pub network: String,
     #[arg(env = "GATEWAY")]
     pub gateway: String,
-    #[arg(env = "DATABASE_URI")]
+    #[arg(env = "DATABASE_URL")]
     pub database_uri: String,
     #[arg(env = "APIBARA_URI")]
     pub apibara_uri: String,
@@ -17,10 +17,6 @@ pub struct Args {
     pub starting_block: u64,
     #[arg(long, default_value_t = 10)]
     pub batch_size: u64,
-    #[arg(long, default_value_t = false)]
-    pub only_seed: bool,
-    #[arg(long, default_value_t = false)]
-    pub only_index: bool,
     #[arg(long, default_value_t = false)]
     pub force: bool,
 }

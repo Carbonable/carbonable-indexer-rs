@@ -13,15 +13,23 @@ default:
 
 # run indexer against against blockchain as data source
 run_indexer env=default_env starting_block=default_starting_block force=default_force:
-	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/  SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=debug RUST_BACKTRACE=1 cargo run -p carbonable-indexer -- --starting-block {{starting_block}} --batch-size 10 --only-index {{force}}
+	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URL=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/  SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=debug RUST_BACKTRACE=1 cargo run -p carbonable-indexer --bin carbonable-indexer-index -- --starting-block {{starting_block}} --batch-size 10 {{force}}
 
 # seed base data from data directory
 run_seeding env=default_env:
-	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=info RUST_BACKTRACE=1 cargo run -p carbonable-indexer -- --only-seed
+	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URL=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=info RUST_BACKTRACE=1 cargo run -p carbonable-indexer --bin carbonable-indexer-seed
 
 # run api package to expose carbonable indexer at `http://localhost:8000`
 run_api env=default_env:
-	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} RUST_LOG=debug RUST_BACKTRACE=1 DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} cargo run -p carbonable-api
+	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} RUST_LOG=debug RUST_BACKTRACE=1 DATABASE_URL=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} cargo run -p carbonable-api
+
+# reset event store by truncating projection tables
+run_reset_event_store env=default_env:
+	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URL=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=info RUST_BACKTRACE=1 cargo run -p carbonable-indexer --bin carbonable-indexer-reset-event-store
+
+# runs event_source
+run_event_source env=default_env:
+	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URL=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=debug RUST_BACKTRACE=1 cargo run -p carbonable-indexer --bin carbonable-indexer-event-source
 
 # migrate database to newest schema version
 migrate:
