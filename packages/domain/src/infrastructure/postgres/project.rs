@@ -334,6 +334,7 @@ impl PostgresProject {
             ])
             .columns([
                 (UriIden::Table, UriIden::Id),
+                (UriIden::Table, UriIden::Uri),
                 (UriIden::Table, UriIden::Data),
             ])
             .columns([
@@ -383,6 +384,7 @@ impl PostgresProject {
             ])
             .columns([
                 (UriIden::Table, UriIden::Id),
+                (UriIden::Table, UriIden::Uri),
                 (UriIden::Table, UriIden::Data),
             ])
             .columns([

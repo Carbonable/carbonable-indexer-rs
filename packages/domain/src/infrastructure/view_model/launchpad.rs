@@ -36,24 +36,24 @@ impl From<tokio_postgres::Row> for LaunchpadProject {
                 name: value.get(2),
                 slug: value.get(3),
                 uri: super::project::UriViewModel {
-                    id: None,
-                    uri: value.get(5),
-                    data: value.get(6),
+                    id: value.get(5),
+                    uri: value.get(6),
+                    data: value.get(7),
                 },
             },
             launchpad: Launchpad {
                 is_ready: value.get(4),
-                sale_date: value.get(7),
+                sale_date: value.get(8),
                 minter_contract: MinterContract {
-                    address: value.get(8),
-                    abi: value.get(12),
+                    address: value.get(9),
+                    abi: value.get(13),
                 },
                 image: None,
-                whitelisted_sale_open: value.get(9),
-                public_sale_open: value.get(10),
-                is_sold_out: value.get(11),
+                whitelisted_sale_open: value.get(10),
+                public_sale_open: value.get(11),
+                is_sold_out: value.get(12),
             },
-            whitelist: value.get(13),
+            whitelist: value.get(14),
         }
     }
 }
