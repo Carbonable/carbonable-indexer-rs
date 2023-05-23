@@ -53,7 +53,10 @@ impl From<tokio_postgres::Row> for LaunchpadProject {
                 public_sale_open: value.get(11),
                 is_sold_out: value.get(12),
             },
-            whitelist: value.get(14),
+            whitelist: match value.try_get(14) {
+                Ok(w) => Some(w),
+                Err(_) => None,
+            },
         }
     }
 }
