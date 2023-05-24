@@ -401,10 +401,31 @@ impl PostgresProject {
             ])
             .column((ImplementationIden::Table, ImplementationIden::Abi))
             .column((MinterIden::Table, MinterIden::Whitelist))
+            .columns([
+                (ProjectIden::Table, ProjectIden::TotalSupply),
+                (ProjectIden::Table, ProjectIden::ForecastedApr),
+            ])
+            .column((MinterIden::Table, MinterIden::UnitPrice))
+            .columns([
+                (PaymentIden::Table, PaymentIden::Symbol),
+                (PaymentIden::Table, PaymentIden::Decimals),
+            ])
+            .columns([
+                (MinterIden::Table, MinterIden::MinValuePerTx),
+                (MinterIden::Table, MinterIden::MaxValuePerTx),
+                (MinterIden::Table, MinterIden::ReservedSupply),
+                (MinterIden::Table, MinterIden::TotalValue),
+            ])
+            .column((PaymentIden::Table, PaymentIden::Address))
             .inner_join(
                 MinterIden::Table,
                 Expr::col((MinterIden::Table, MinterIden::ProjectId))
                     .equals((ProjectIden::Table, ProjectIden::Id)),
+            )
+            .inner_join(
+                PaymentIden::Table,
+                Expr::col((PaymentIden::Table, PaymentIden::Id))
+                    .equals((MinterIden::Table, MinterIden::PaymentId)),
             )
             .inner_join(
                 UriIden::Table,

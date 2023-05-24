@@ -10,7 +10,7 @@ pub struct UriViewModel {
     pub data: serde_json::Value,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 pub struct Project {
     pub(crate) id: Uuid,
     pub(crate) address: String,
@@ -19,7 +19,7 @@ pub struct Project {
     pub uri: UriViewModel,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 #[serde(untagged)]
 pub enum ProjectViewModel {
     Erc721(Project),
