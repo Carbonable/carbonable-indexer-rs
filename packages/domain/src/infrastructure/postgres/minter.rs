@@ -1,6 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crypto_bigint::CheckedMul;
 use deadpool_postgres::Pool;
 use sea_query::{Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
@@ -146,7 +145,6 @@ impl PostgresMinter<Erc3525> {
             .expect("should have getMaxValue")
             .resolve("u256")
             .into();
-        let total_value = unit_price.checked_mul(&max_value).unwrap();
         let (sql, values) = Query::insert()
             .into_table(MinterIden::Table)
             .columns([
@@ -191,7 +189,7 @@ impl PostgresMinter<Erc3525> {
                     .resolve("u256")
                     .into(),
                 U256::from(unit_price).into(),
-                U256::from(total_value).into(),
+                U256::from(max_value).into(),
                 data.get_mut("getWhitelistMerkleRoot")
                     .expect("should have getWhitelistMerkleRoot")
                     .resolve("u256")

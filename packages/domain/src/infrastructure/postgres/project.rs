@@ -331,6 +331,7 @@ impl PostgresProject {
                 (ProjectIden::Table, ProjectIden::Name),
                 (ProjectIden::Table, ProjectIden::Slug),
                 (ProjectIden::Table, ProjectIden::Setup),
+                (ProjectIden::Table, ProjectIden::ValueDecimals),
             ])
             .columns([
                 (UriIden::Table, UriIden::Id),
@@ -386,6 +387,7 @@ impl PostgresProject {
                 (ProjectIden::Table, ProjectIden::Name),
                 (ProjectIden::Table, ProjectIden::Slug),
                 (ProjectIden::Table, ProjectIden::Setup),
+                (ProjectIden::Table, ProjectIden::ValueDecimals),
             ])
             .columns([
                 (UriIden::Table, UriIden::Id),
