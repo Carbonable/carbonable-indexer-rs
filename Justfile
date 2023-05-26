@@ -56,6 +56,18 @@ install: start_db && reset run_seeding
 deploy env=default_env:
     fly deploy -c fly.{{env}}.toml
 
-# connect to psql
+# connect to psql locally
 db_connect:
     docker exec -ti carbonable-indexer-db-1 psql -W carbonable_indexer carbonable
+
+# proxy database to port to localhost
+proxy env=default_env:
+    fly proxy 5432 -a carbonable-{{env}}-indexer-db
+
+# ssh to app
+ssh env=default_env:
+    fly ssh console -c fly.{{env}}.toml
+
+# restart indexer-service
+restart_indexer env=default_env:
+    fly m ls -c fly.{{env}}.toml -j | jq '.[] | select(.state == "started" and .config.metadata.fly_process_group == "indexer") | .id' | xargs -n 1 fly m restart -c fly.{{env}}.toml
