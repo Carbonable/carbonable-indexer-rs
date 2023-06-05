@@ -55,7 +55,7 @@ impl DomainEvent {
         add_contract_event_emitter(&mut metadata, &value);
 
         DomainEvent {
-            id: format!("{}_{}", felt, version),
+            id: format!("{felt}_{version}"),
             metadata,
             payload,
             r#type: event.expect("event should not be none at this point"),
