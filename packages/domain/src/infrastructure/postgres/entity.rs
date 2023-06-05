@@ -113,6 +113,7 @@ pub struct Project {
     pub erc_implementation: ErcImplementation,
     pub implementation_id: Option<Uuid>,
     pub uri_id: Option<Uuid>,
+    pub project_value: Option<U256>,
 }
 
 impl From<tokio_postgres::Row> for Project {
@@ -135,6 +136,7 @@ impl From<tokio_postgres::Row> for Project {
             erc_implementation: value.get(13),
             implementation_id: None,
             uri_id: None,
+            project_value: value.get(14),
         }
     }
 }

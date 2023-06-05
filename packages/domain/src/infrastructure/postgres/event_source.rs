@@ -433,3 +433,36 @@ pub async fn update_project_total_value<'a>(
         }
     }
 }
+
+/// Update project project_value when `ProjectValueUpdate` is emitted
+/// * tx: [`deadpool_postgres::Object`]
+/// * contract_address: [`&str`]
+/// * amount: [`U256`]
+///
+pub async fn update_project_project_value<'a>(
+    tx: &Transaction<'a>,
+    project_address: &str,
+    slot: &U256,
+    project_value: &U256,
+) -> Result<(), PostgresError> {
+    let (sql, values) = Query::update()
+        .table(ProjectIden::Table)
+        .and_where(
+            Expr::expr(Func::lower(Expr::col((
+                ProjectIden::Table,
+                ProjectIden::Address,
+            ))))
+            .eq(Func::lower(project_address)),
+        )
+        .and_where(Expr::col((ProjectIden::Table, ProjectIden::Slot)).eq(slot))
+        .values([(ProjectIden::ProjectValue, project_value.into())])
+        .build_postgres(PostgresQueryBuilder);
+
+    match tx.execute(&sql, &values.as_params()).await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            error!("project.project_value.error : {:#?}", e);
+            Err(PostgresError::TokioPostgresError(e))
+        }
+    }
+}

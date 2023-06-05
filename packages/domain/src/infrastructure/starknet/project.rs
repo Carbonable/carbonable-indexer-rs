@@ -151,6 +151,7 @@ impl StarknetModel<Vec<HashMap<String, StarknetValue>>> for ProjectModel<Erc3525
                     "getTimes",
                     "getAbsorptions",
                     "isSetup",
+                    "getProjectValue",
                 ],
             )
             .await?;
