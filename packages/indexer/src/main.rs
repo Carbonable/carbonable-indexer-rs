@@ -11,7 +11,8 @@ use carbonable_domain::{
                 MinterMigrationEventConsumer,
             },
             project::{
-                ProjectFilters, ProjectSlotChangedEventConsumer, ProjectTransferEventConsumer,
+                ProjectFilters, ProjectProjectValueUpdateEventConsumer,
+                ProjectSlotChangedEventConsumer, ProjectTransferEventConsumer,
                 ProjectTransferValueEventConsumer,
             },
             yielder::{
@@ -106,6 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         event_bus.add_consumer(Box::new(ProjectTransferEventConsumer::new()));
         event_bus.add_consumer(Box::new(ProjectTransferValueEventConsumer::new()));
         event_bus.add_consumer(Box::new(ProjectSlotChangedEventConsumer::new()));
+        event_bus.add_consumer(Box::new(ProjectProjectValueUpdateEventConsumer::new()));
         // Yielder
         event_bus.add_consumer(Box::new(YielderClaimEventConsumer::new()));
         event_bus.add_consumer(Box::new(YielderDepositEventConsumer::new()));

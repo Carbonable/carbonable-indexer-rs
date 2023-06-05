@@ -77,6 +77,7 @@ impl From<Event> for &str {
                 ProjectEvents::SlotChanged => "project.slot_changed",
                 ProjectEvents::MetadataUpdate => "project.metadata_update",
                 ProjectEvents::BatchMetadataUpdate => "project.batch_metadata_update",
+                ProjectEvents::ProjectValueUpdate => "project.project_value_update",
             },
             Event::Minter(v) => match v {
                 MinterEvents::Upgraded => "minter.upgraded",
@@ -119,6 +120,7 @@ impl From<&str> for Event {
             "project.slot_changed" => Event::Project(ProjectEvents::SlotChanged),
             "project.metadata_update" => Event::Project(ProjectEvents::MetadataUpdate),
             "project.batch_metadata_update" => Event::Project(ProjectEvents::BatchMetadataUpdate),
+            "project.project_value_update" => Event::Project(ProjectEvents::ProjectValueUpdate),
             "minter.upgraded" => Event::Minter(MinterEvents::Upgraded),
             "minter.airdrop" => Event::Minter(MinterEvents::Airdrop),
             "minter.buy" => Event::Minter(MinterEvents::Buy),
@@ -138,7 +140,7 @@ impl From<&str> for Event {
             "yielder.withdraw" => Event::Yielder(YielderEvents::Withdraw),
             "yielder.snapshot" => Event::Yielder(YielderEvents::Snapshot),
             "yielder.provision" => Event::Yielder(YielderEvents::Provision),
-            &_ => panic!("Unknown event {}", value),
+            &_ => panic!("Unknown event {value}"),
         }
     }
 }

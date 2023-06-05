@@ -243,6 +243,11 @@ async fn map_multicall_to_hashmap(
         (address.to_string(), "owner", vec![]),
         (address.to_string(), "symbol", vec![]),
         (address.to_string(), "valueDecimals", vec![]),
+        (
+            address.to_string(),
+            "getProjectValue",
+            vec![slot_felt, FieldElement::ZERO],
+        ),
     ];
 
     let data = parallelize_blockchain_rpc_calls(provider.clone(), calldata.to_vec()).await?;
@@ -273,6 +278,10 @@ async fn map_multicall_to_hashmap(
     slot_data.insert(
         "valueDecimals".to_string(),
         StarknetValue::new(data[9].clone()),
+    );
+    slot_data.insert(
+        "getProjectValue".to_string(),
+        StarknetValue::new(data[10].clone()),
     );
 
     let uri: String = slot_uri.resolve("string_array").into();

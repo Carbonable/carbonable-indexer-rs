@@ -56,6 +56,7 @@ impl PostgresProject {
                 ProjectIden::Setup,
                 ProjectIden::ValueDecimals,
                 ProjectIden::ErcImplementation,
+                ProjectIden::ProjectValue,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
             .build_postgres(PostgresQueryBuilder);
@@ -129,6 +130,7 @@ impl PostgresProject {
                 ProjectIden::Setup,
                 ProjectIden::ValueDecimals,
                 ProjectIden::ErcImplementation,
+                ProjectIden::ProjectValue,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
             .and_where(Expr::col(ProjectIden::Slot).eq(U256::from(*slot)))
@@ -232,6 +234,10 @@ impl PostgresProject {
             None => U256(crypto_bigint::U256::from_u64(0)).into(),
             Some(v) => v.resolve("u256").into(),
         };
+        let project_value = match data.get_mut("getProjectValue") {
+            None => U256(crypto_bigint::U256::from_u64(0)).into(),
+            Some(v) => v.resolve("u256").into(),
+        };
         let (sql, values) = Query::insert()
             .into_table(ProjectIden::Table)
             .columns([
@@ -251,6 +257,7 @@ impl PostgresProject {
                 ProjectIden::ErcImplementation,
                 ProjectIden::ImplementationId,
                 ProjectIden::UriId,
+                ProjectIden::ProjectValue,
             ])
             .values([
                 Uuid::new_v4().into(),
@@ -306,6 +313,7 @@ impl PostgresProject {
                 sea_query::Value::String(Some(Box::new(erc_implementation.to_string()))).into(),
                 implementation_id.into(),
                 uri_id.into(),
+                project_value,
             ])?
             .build_postgres(PostgresQueryBuilder);
 
