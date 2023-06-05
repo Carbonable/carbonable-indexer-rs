@@ -17,7 +17,7 @@ async fn aggregate_metadata(mut project: ProjectViewModel) -> Result<ProjectView
         ProjectViewModel::Erc3525(p) => &p.uri.uri,
     };
     let data = client
-        .get(format!("{}/token", uri))
+        .get(format!("{uri}/token"))
         .send()
         .await?
         .json()
