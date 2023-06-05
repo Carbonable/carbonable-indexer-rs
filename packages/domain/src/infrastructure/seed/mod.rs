@@ -75,22 +75,27 @@ impl DataSeeder<SqlSeederManager> {
     pub async fn seed(&self) -> Result<(), DataSeederError> {
         debug!("Seeding data.");
 
-        let mut seeds = vec![];
+        //let mut seeds = vec![];
         // Seeds data from blockchain to database
         for data in self.data.iter() {
             let inner = self.inner.clone();
             let data = data.clone();
+            println!("{:#?}", data.clone());
             let handle = tokio::spawn(async move { inner.handle(data).await });
-            seeds.push(flatten(handle));
+            //seeds.push(flatten(handle));
+
+            handle.await??;
         }
 
-        match futures::future::try_join_all(seeds).await {
-            Ok(_r) => Ok(()),
-            Err(e) => {
-                error!("{:#?}", e);
-                Err(e)
-            }
-        }
+        Ok(())
+
+        // match futures::future::try_join_all(seeds).await {
+        //     Ok(_r) => Ok(()),
+        //     Err(e) => {
+        //         error!("{:#?}", e);
+        //         Err(e)
+        //     }
+        // }
     }
 }
 

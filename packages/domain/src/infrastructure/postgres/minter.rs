@@ -157,7 +157,7 @@ impl PostgresMinter<Erc3525> {
                 MinterIden::MaxValuePerTx,
                 MinterIden::MinValuePerTx,
                 MinterIden::UnitPrice,
-                MinterIden::TotalValue,
+                MinterIden::TotalValue, // TODO: change to MaxValue
                 MinterIden::WhitelistMerkleRoot,
                 MinterIden::SoldOut,
                 MinterIden::ErcImplementation,
