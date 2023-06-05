@@ -101,13 +101,14 @@ pub(crate) async fn load_blockchain_data(
 
         let handle = tokio::spawn(async move {
             let contract_entrypoint = selector;
+
             let res = provider
                 .call(
                     get_call_function(&address, contract_entrypoint, vec![]),
                     &BlockId::Tag(BlockTag::Latest),
                 )
-                .await;
-            Ok((selector.to_string(), StarknetValue::new(res.unwrap())))
+                .await?;
+            Ok((selector.to_string(), StarknetValue::new(res)))
         });
 
         handles.push(flatten(handle));
@@ -337,10 +338,7 @@ impl StarknetValueResolver for StarknetValue {
                 self.resolved = Some(resolved.clone());
                 resolved
             }
-            _ => panic!(
-                "starknet required type not implemented yet {}",
-                required_type
-            ),
+            _ => panic!("starknet required type not implemented yet {required_type}"),
         };
     }
 }
