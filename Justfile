@@ -13,11 +13,11 @@ default:
 
 # run indexer against against blockchain as data source
 run_indexer env=default_env starting_block=default_starting_block force=default_force:
-	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/  SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=debug RUST_BACKTRACE=1 cargo run -p carbonable-indexer -- --starting-block {{starting_block}} --batch-size 10 --only-index {{force}}
+	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=info RUST_BACKTRACE=1 cargo run -p carbonable-indexer -- --starting-block {{starting_block}} --batch-size 10 --only-index {{force}}
 
 # seed base data from data directory
 run_seeding env=default_env:
-	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0 APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=info RUST_BACKTRACE=1 cargo run -p carbonable-indexer -- --only-seed
+	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN=https://starknet-goerli.cartridge.gg  APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=info RUST_BACKTRACE=1 cargo run -p carbonable-indexer -- --only-seed
 
 # run api package to expose carbonable indexer at `http://localhost:8000`
 run_api env=default_env:
@@ -47,6 +47,10 @@ clippy:
 # start application database
 start_db: 
     docker compose -p carbonable-indexer up -d
+
+# stop application database
+stop_db:
+    docker compose -p carbonable-indexer down
 
 # installs project stack
 install: start_db && reset run_seeding
