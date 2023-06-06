@@ -106,15 +106,14 @@ fn get_starknet_rpc_client(
 /// Get sequencer from given [`StarknetEnv`] variable
 fn get_sequencer_domain(env: &StarknetEnv) -> Result<String, SequencerError> {
     if let Ok(domain) = std::env::var("SEQUENCER_DOMAIN") {
-        //let subdomain = match env {
-        //     StarknetEnv::Mainnet => "starknet-mainnet",
-        //     StarknetEnv::Goerli => "starknet-goerli",
-        //     StarknetEnv::Goerli2 => "starknet-goerli2",
-        //     StarknetEnv::Local => "http://localhost:3000",
-        // };
+        let subdomain = match env {
+            StarknetEnv::Mainnet => "starknet-mainnet",
+            StarknetEnv::Goerli => "starknet-goerli",
+            StarknetEnv::Goerli2 => "starknet-goerli2",
+            StarknetEnv::Local => "http://localhost:3000",
+        };
 
-        // return Ok(domain.replace("DOMAIN", subdomain));
-        return Ok(domain);
+        return Ok(domain.replace("DOMAIN", subdomain));
     }
     Err(SequencerError::NoSequencerDomainProvided)
 }
