@@ -56,6 +56,7 @@ pub struct CustomerGlobalDataForComputation {
     pub yielder_address: String,
     pub offseter_address: String,
     pub slot: U256,
+    pub project_value: U256,
 }
 
 impl From<tokio_postgres::Row> for CustomerGlobalDataForComputation {
@@ -72,6 +73,7 @@ impl From<tokio_postgres::Row> for CustomerGlobalDataForComputation {
             yielder_address: value.get(8),
             offseter_address: value.get(9),
             slot: value.get(10),
+            project_value: value.get(11),
         }
     }
 }
@@ -386,9 +388,7 @@ impl CustomerDetailsProjectData {
             StarknetValue::new(data[7].clone()).resolve("u256").into();
         let yielder_total_deposited: U256 =
             StarknetValue::new(data[8].clone()).resolve("u256").into();
-        let total_supply: U256 = project
-            .total_value
-            .unwrap_or(U256::from(crypto_bigint::U256::from_u8(0)));
+        let project_value: U256 = farming_data.project_value;
         let min_to_claim: U256 = StarknetValue::new(data[9].clone()).resolve("u256").into();
 
         self.overview.total_removal =
@@ -399,7 +399,7 @@ impl CustomerDetailsProjectData {
             SlotValue::from_blockchain(offseter_total_deposited, project.value_decimals).into();
 
         self.overview.tvl = Erc20::from_blockchain(
-            farming_data.unit_price * (offseter_deposited_of + yielder_total_deposited),
+            farming_data.unit_price * (offseter_total_deposited + yielder_total_deposited),
             farming_data.payment_decimals,
             farming_data.payment_symbol.clone(),
         )
@@ -410,7 +410,7 @@ impl CustomerDetailsProjectData {
                 * (offseter_deposited_of.to_big_decimal(0)
                     + yielder_deposited_of.to_big_decimal(0)
                     + value_of.to_big_decimal(0))
-                / total_supply.to_big_decimal(0),
+                / project_value.to_big_decimal(0),
         )
         .into();
         self.carbon_credits.to_be_generated = Mass::<BigDecimal>::from_blockchain(
@@ -418,7 +418,7 @@ impl CustomerDetailsProjectData {
                 * ((offseter_deposited_of.to_big_decimal(0)
                     + yielder_deposited_of.to_big_decimal(0)
                     + value_of.to_big_decimal(0))
-                    / total_supply.to_big_decimal(0)),
+                    / project_value.to_big_decimal(0)),
         )
         .into();
 

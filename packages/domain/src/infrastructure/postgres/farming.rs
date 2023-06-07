@@ -84,6 +84,7 @@ impl PostgresFarming {
             .column((YielderIden::Table, YielderIden::Address))
             .column((OffseterIden::Table, OffseterIden::Address))
             .column((ProjectIden::Table, ProjectIden::Slot))
+            .column((ProjectIden::Table, ProjectIden::ProjectValue))
             .from(ProjectIden::Table)
             .left_join(
                 YielderIden::Table,
@@ -309,7 +310,7 @@ impl PostgresFarming {
 
         let (sql, values) = Query::select()
             .from(ProjectIden::Table)
-            .column((ProjectIden::Table, ProjectIden::TotalSupply))
+            .column((ProjectIden::Table, ProjectIden::ProjectValue))
             .column((MinterIden::Table, MinterIden::UnitPrice))
             .inner_join(
                 MinterIden::Table,
