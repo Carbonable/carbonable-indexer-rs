@@ -60,7 +60,9 @@ pub async fn project_details(
     let snapshots = project_model.get_snapshots(yielder_id).await?;
     let provisions = project_model.get_provisions(yielder_id).await?;
     let project = project_data.pop().unwrap();
-    let total_value = project_model.get_total_value(project.id).await?;
+    let total_value = project_model
+        .get_project_value_times_unit_price(project.id)
+        .await?;
     let mut customer_tokens = customer_token_model
         .get_customer_tokens(&wallet, &project.project_address, &project.slot)
         .await?;

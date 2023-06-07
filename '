@@ -171,12 +171,21 @@ fn get_project_current_apr(
         .last()
         .expect("should have at least one provision");
 
-    let snapshot = match snapshots.iter().filter(|s| s.time <= provision.time).last() {
+    let snapshot = match snapshots.iter().filter(|s| s.time < provision.time).last() {
         Some(s) => s,
         None => return Err(ModelError::InvalidDataSet("snapshots".to_string())),
     };
 
     let diff_time = snapshot.time - snapshot.previous_time;
+
+    println!("Provision => {:#?}", provision);
+    println!("Snapshot => {:#?}", snapshot);
+    println!(
+        "Diff_time => {:#?} // {:#?}",
+        diff_time,
+        U256::from(diff_time)
+    );
+    println!("total_value => {:#?}", diff_time, U256::from(diff_time));
 
     let numerator = (U256(crypto_bigint::U256::from_u8(100))
         * provision.amount

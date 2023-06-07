@@ -305,7 +305,10 @@ impl PostgresFarming {
         }
     }
 
-    pub async fn get_total_value(&self, project_id: Uuid) -> Result<U256, PostgresError> {
+    pub async fn get_project_value_times_unit_price(
+        &self,
+        project_id: Uuid,
+    ) -> Result<U256, PostgresError> {
         let client = self.db_client_pool.clone().get().await?;
 
         let (sql, values) = Query::select()

@@ -105,7 +105,9 @@ pub async fn unconnected(
         ));
     }
     let project = project_data.pop().unwrap();
-    let total_value = project_model.get_total_value(project.id).await?;
+    let total_value = project_model
+        .get_project_value_times_unit_price(project.id)
+        .await?;
 
     let unconnected_data_project =
         get_unconnected_project_data(project, farming_data, snapshots, provisions, total_value)
