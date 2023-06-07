@@ -339,6 +339,7 @@ pub struct CustomerDetailsProjectData {
     contracts: ContractsList,
     payment_decimals: u32,
     ton_equivalent: BigDecimal,
+    unit_price: HumanComprehensibleU256<U256>,
 }
 
 impl CustomerDetailsProjectData {
@@ -466,6 +467,12 @@ impl CustomerDetailsProjectData {
 
         self.ton_equivalent = project.ton_equivalent.to_big_decimal(0);
         self.payment_decimals = project.payment_decimals.into();
+        self.unit_price = Erc20::from_blockchain(
+            farming_data.unit_price,
+            farming_data.payment_decimals,
+            farming_data.payment_symbol.to_string(),
+        )
+        .into();
 
         self
     }
