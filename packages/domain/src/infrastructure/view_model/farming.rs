@@ -469,7 +469,11 @@ impl CustomerDetailsProjectData {
         self.payment_decimals = project.payment_decimals.into();
         self.unit_price = Erc20::from_blockchain(
             farming_data.unit_price,
-            farming_data.payment_decimals,
+            // NOTE: as we didn't properly set value in smart contract we there remove the decimals
+            // idea. Instead of setting 20 000 000 we set 20 so we remove the notion of decimals
+            // and everyone is happy for now
+            // trick to reproduce from launchpad/details
+            project.value_decimals - farming_data.payment_decimals,
             farming_data.payment_symbol.to_string(),
         )
         .into();
