@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};project
+use std::{collections::HashMap, sync::Arc};
 
 use deadpool_postgres::Pool;
 use tokio_postgres::error::SqlState;
