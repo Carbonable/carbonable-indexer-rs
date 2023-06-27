@@ -17,8 +17,7 @@ use carbonable_domain::{
             },
             yielder::{
                 YieldFilters, YielderClaimEventConsumer, YielderDepositEventConsumer,
-                YielderProvisionEventConsumer, YielderSnapshotEventConsumer,
-                YielderWithdrawEventConsumer,
+                YielderPriceUpdateEventConsumer, YielderWithdrawEventConsumer,
             },
             BlockMetadata, DomainEvent, Filterable,
         },
@@ -111,8 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Yielder
         event_bus.add_consumer(Box::new(YielderClaimEventConsumer::new()));
         event_bus.add_consumer(Box::new(YielderDepositEventConsumer::new()));
-        event_bus.add_consumer(Box::new(YielderProvisionEventConsumer::new()));
-        event_bus.add_consumer(Box::new(YielderSnapshotEventConsumer::new()));
+        event_bus.add_consumer(Box::new(YielderPriceUpdateEventConsumer::new()));
         event_bus.add_consumer(Box::new(YielderWithdrawEventConsumer::new()));
         //Minter
         event_bus.add_consumer(Box::new(MinterMigrationEventConsumer::new()));

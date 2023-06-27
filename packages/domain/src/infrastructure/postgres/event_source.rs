@@ -3,7 +3,6 @@ use deadpool_postgres::{GenericClient, Object, Pool};
 use sea_query::{Expr, Func, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use serde_json::json;
-use time::OffsetDateTime;
 use tokio_postgres::error::SqlState;
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -13,11 +12,10 @@ use crate::domain::{
     crypto::U256,
     event_source::{DomainError, DomainEvent, StorageClientPool},
 };
+use crate::infrastructure::starknet::model::StarknetResolvedValue;
 use std::sync::Arc;
 
-use super::entity::{
-    EventStoreIden, ProjectIden, ProvisionIden, Snapshot, SnapshotIden, YielderIden,
-};
+use super::entity::{EventStoreIden, ProjectIden, YielderIden};
 use super::{entity::CustomerTokenIden, PostgresError};
 
 #[derive(Debug)]
@@ -178,6 +176,7 @@ pub async fn update_token_owner<'a>(
 /// * slot: [`U256`]
 /// * value: [`U256`]
 ///
+#[allow(clippy::too_many_arguments)]
 pub async fn migrate_customer_token<'a>(
     tx: &Transaction<'a>,
     project_address: &str,
@@ -282,96 +281,30 @@ pub async fn update_token_slot<'a>(
     }
 }
 
-/// From blockchain `Provision` event updates database
+/// From blockchain `PriceUpdate` event updates database
 ///
 /// * tx: [`deadpool_postgres::Object`]
-/// * contract_address: [`&str`]
-/// * amount: [`U256`]
-/// * time: [`OffsetDateTime`]
+/// * yielder_id: [`Uuid`]
+/// * prices: [`U256`]
 ///
-pub async fn add_provision_to_yielder<'a>(
+pub async fn update_yielder_prices<'a>(
     tx: &Transaction<'a>,
     yielder_id: Uuid,
-    amount: U256,
-    time: OffsetDateTime,
+    prices: StarknetResolvedValue,
 ) -> Result<(), PostgresError> {
-    let id = uuid::Uuid::new_v4();
-    let (sql, values) = Query::insert()
-        .into_table(ProvisionIden::Table)
-        .columns([
-            ProvisionIden::Id,
-            ProvisionIden::Amount,
-            ProvisionIden::Time,
-            ProvisionIden::YielderId,
-        ])
-        .values([id.into(), amount.into(), time.into(), yielder_id.into()])?
+    let (sql, values) = Query::update()
+        .table(YielderIden::Table)
+        .and_where(Expr::col(YielderIden::Id).eq(yielder_id))
+        .values([(YielderIden::Prices, prices.into())])
         .build_postgres(PostgresQueryBuilder);
 
     match tx.execute(sql.as_str(), &values.as_params()).await {
         Ok(res) => {
-            debug!("yielder.provision: {:#?}", res);
+            debug!("yielder.price_update: {:#?}", res);
             Ok(())
         }
         Err(e) => {
-            error!("yielder.provision: {:#?}", e);
-            Err(PostgresError::from(e))
-        }
-    }
-}
-
-/// From blockchain `Snapshot` event updates database
-///
-/// * tx: [`deadpool_postgres::Object`]
-/// * contract_address: [`&str`]
-/// * amount: [`U256`]
-/// * time: [`OffsetDateTime`]
-///
-pub async fn add_snapshot_to_yielder<'a>(
-    tx: &Transaction<'a>,
-    snapshot: &Snapshot,
-) -> Result<(), PostgresError> {
-    let id = uuid::Uuid::new_v4();
-    let (sql, values) = Query::insert()
-        .into_table(SnapshotIden::Table)
-        .columns([
-            SnapshotIden::Id,
-            SnapshotIden::PreviousTime,
-            SnapshotIden::PreviousProjectAbsorption,
-            SnapshotIden::PreviousOffseterAbsorption,
-            SnapshotIden::PreviousYielderAbsorption,
-            SnapshotIden::CurrentProjectAbsorption,
-            SnapshotIden::CurrentOffseterAbsorption,
-            SnapshotIden::CurrentYielderAbsorption,
-            SnapshotIden::ProjectAbsorption,
-            SnapshotIden::OffseterAbsorption,
-            SnapshotIden::YielderAbsorption,
-            SnapshotIden::Time,
-            SnapshotIden::YielderId,
-        ])
-        .values([
-            id.into(),
-            snapshot.previous_time.into(),
-            snapshot.previous_project_absorption.into(),
-            snapshot.previous_offseter_absorption.into(),
-            snapshot.previous_yielder_absorption.into(),
-            snapshot.current_project_absorption.into(),
-            snapshot.current_offseter_absorption.into(),
-            snapshot.current_yielder_absorption.into(),
-            snapshot.project_absorption.into(),
-            snapshot.offseter_absorption.into(),
-            snapshot.yielder_absorption.into(),
-            snapshot.time.into(),
-            snapshot.yielder_id.into(),
-        ])?
-        .build_postgres(PostgresQueryBuilder);
-
-    match tx.execute(sql.as_str(), &values.as_params()).await {
-        Ok(res) => {
-            debug!("yielder.snapshot: {:#?}", res);
-            Ok(())
-        }
-        Err(e) => {
-            error!("yielder.snapshot: {:#?}", e);
+            error!("yielder.price_update: {:#?}", e);
             Err(PostgresError::from(e))
         }
     }

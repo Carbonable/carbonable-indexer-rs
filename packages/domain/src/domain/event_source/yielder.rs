@@ -5,18 +5,12 @@ use deadpool_postgres::Transaction;
 use serde::{Deserialize, Serialize};
 use starknet::macros::selector;
 use tracing::error;
-use uuid::Uuid;
 
-use crate::{
-    domain::crypto::U256,
-    infrastructure::{
-        postgres::{
-            entity::Snapshot,
-            event_source::{
-                add_provision_to_yielder, add_snapshot_to_yielder, get_yielder_id_from_address,
-            },
-        },
-        starknet::model::felt_to_offset_datetime,
+use crate::infrastructure::{
+    postgres::event_source::{get_yielder_id_from_address, update_yielder_prices},
+    starknet::{
+        get_starknet_rpc_from_env,
+        model::{parallelize_blockchain_rpc_calls, StarknetValue, StarknetValueResolver},
     },
 };
 
@@ -30,8 +24,7 @@ pub enum YielderEvents {
     Upgraded,
     Deposit,
     Withdraw,
-    Snapshot,
-    Provision,
+    PriceUpdate,
 }
 
 /// Base struct for [`Yielder`] to enable [`Filterable`] behaviour
@@ -85,12 +78,9 @@ impl Filterable for YieldFilters {
                         Event::Yielder(YielderEvents::Withdraw),
                     ),
                     (
-                        FieldElement::from_bytes(&selector!("Provision").to_bytes_be()).to_string(),
-                        Event::Yielder(YielderEvents::Provision),
-                    ),
-                    (
-                        FieldElement::from_bytes(&selector!("Snapshot").to_bytes_be()).to_string(),
-                        Event::Yielder(YielderEvents::Snapshot),
+                        FieldElement::from_bytes(&selector!("PriceUpdate").to_bytes_be())
+                            .to_string(),
+                        Event::Yielder(YielderEvents::PriceUpdate),
                     ),
                 ]
                 .to_vec(),
@@ -149,19 +139,19 @@ impl Consumer<Transaction<'_>> for YielderDepositEventConsumer {
     }
 }
 
-/// Consuming [`Provision`] event emitted from [`Yielder`] on chain
+/// Consuming [`PriceUpdate`] event emitted from [`Yielder`] on chain
 #[derive(Default, Debug)]
-pub struct YielderProvisionEventConsumer {}
-impl YielderProvisionEventConsumer {
+pub struct YielderPriceUpdateEventConsumer {}
+impl YielderPriceUpdateEventConsumer {
     pub fn new() -> Self {
         Self {}
     }
 }
 
 #[async_trait::async_trait]
-impl Consumer<Transaction<'_>> for YielderProvisionEventConsumer {
+impl Consumer<Transaction<'_>> for YielderPriceUpdateEventConsumer {
     fn can_consume(&self, event: &Event) -> bool {
-        matches!(event, Event::Yielder(YielderEvents::Provision))
+        matches!(event, Event::Yielder(YielderEvents::PriceUpdate))
     }
 
     async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
@@ -180,129 +170,12 @@ impl Consumer<Transaction<'_>> for YielderProvisionEventConsumer {
             }
         };
 
-        let amount = U256::from(FieldElement::from_hex(event.payload.get("1").unwrap()).unwrap());
-        let time = felt_to_offset_datetime(event.payload.get("2").expect("should have time"));
+        let provider = get_starknet_rpc_from_env()?;
+        let values = [(yielder_address.to_string(), "getPrices", vec![])];
+        let data = parallelize_blockchain_rpc_calls(provider.into(), values.to_vec()).await?;
+        let prices = StarknetValue::new(data[0].clone()).resolve("u256_array");
 
-        add_provision_to_yielder(txn, yielder_id, amount, time).await?;
-        Ok(())
-    }
-}
-
-/// Consuming [`Snapshot`] [`Yielder`] on chain
-#[derive(Default, Debug)]
-pub struct YielderSnapshotEventConsumer {}
-impl YielderSnapshotEventConsumer {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-#[async_trait::async_trait]
-impl Consumer<Transaction<'_>> for YielderSnapshotEventConsumer {
-    fn can_consume(&self, event: &Event) -> bool {
-        matches!(event, Event::Yielder(YielderEvents::Snapshot))
-    }
-
-    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
-        let yielder_address = event
-            .metadata
-            .get("from_address")
-            .expect("should have from_address");
-        let yielder_id = match get_yielder_id_from_address(txn, yielder_address).await {
-            Some(id) => id,
-            None => {
-                error!(
-                    "yielder.provision => did not find yielder matching address: {}",
-                    yielder_address
-                );
-                return Err(DomainError::ContractNotFound(yielder_address.to_string()));
-            }
-        };
-
-        let previous_time =
-            felt_to_offset_datetime(event.payload.get("1").expect("should have previous_time"));
-        let current_time =
-            felt_to_offset_datetime(event.payload.get("5").expect("should have current_time"));
-
-        let snapshot = Snapshot {
-            id: Uuid::new_v4(),
-            previous_time,
-            previous_project_absorption: FieldElement::from_hex(
-                event
-                    .payload
-                    .get("2")
-                    .expect("should have previous_project_absorption"),
-            )
-            .unwrap()
-            .into(),
-            previous_offseter_absorption: FieldElement::from_hex(
-                event
-                    .payload
-                    .get("3")
-                    .expect("should have previous_offseter_absorption"),
-            )
-            .unwrap()
-            .into(),
-            previous_yielder_absorption: FieldElement::from_hex(
-                event
-                    .payload
-                    .get("4")
-                    .expect("should have previous_yielder_absorption"),
-            )
-            .unwrap()
-            .into(),
-            time: current_time,
-            current_project_absorption: FieldElement::from_hex(
-                event
-                    .payload
-                    .get("6")
-                    .expect("should have current_project_absorption"),
-            )
-            .unwrap()
-            .into(),
-            current_offseter_absorption: FieldElement::from_hex(
-                event
-                    .payload
-                    .get("7")
-                    .expect("should have current_offseter_absorption"),
-            )
-            .unwrap()
-            .into(),
-            current_yielder_absorption: FieldElement::from_hex(
-                event
-                    .payload
-                    .get("8")
-                    .expect("should have current_yielder_absorption"),
-            )
-            .unwrap()
-            .into(),
-            project_absorption: FieldElement::from_hex(
-                event
-                    .payload
-                    .get("9")
-                    .expect("should have project_absorption"),
-            )
-            .unwrap()
-            .into(),
-            offseter_absorption: FieldElement::from_hex(
-                event
-                    .payload
-                    .get("10")
-                    .expect("should have offseter_absorption"),
-            )
-            .unwrap()
-            .into(),
-            yielder_absorption: FieldElement::from_hex(
-                event
-                    .payload
-                    .get("11")
-                    .expect("should have yielder_absorption"),
-            )
-            .unwrap()
-            .into(),
-            yielder_id: Some(yielder_id),
-        };
-        let _snapshot_added = add_snapshot_to_yielder(txn, &snapshot).await;
+        update_yielder_prices(txn, yielder_id, prices).await?;
         Ok(())
     }
 }

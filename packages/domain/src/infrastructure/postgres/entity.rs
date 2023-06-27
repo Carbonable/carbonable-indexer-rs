@@ -3,7 +3,7 @@ use std::fmt::Display;
 use bigdecimal::BigDecimal;
 use postgres_types::{accepts, to_sql_checked, FromSql, ToSql};
 use sea_query::{enum_def, Iden};
-use time::{macros::offset, OffsetDateTime, PrimitiveDateTime};
+use time::{OffsetDateTime, PrimitiveDateTime};
 use uuid::Uuid;
 
 use crate::domain::{crypto::U256, event_source::Event};
@@ -238,6 +238,7 @@ pub struct Offseter {
 
 #[enum_def]
 #[derive(Debug)]
+#[deprecated(note = "use new yielder methods")]
 pub struct Snapshot {
     pub id: Uuid,
     pub previous_time: OffsetDateTime,
@@ -253,27 +254,6 @@ pub struct Snapshot {
     pub time: OffsetDateTime,
     pub yielder_id: Option<Uuid>,
 }
-impl From<tokio_postgres::Row> for Snapshot {
-    fn from(value: tokio_postgres::Row) -> Self {
-        let previous_time: PrimitiveDateTime = value.get(1);
-        let time: PrimitiveDateTime = value.get(11);
-        Self {
-            id: value.get(0),
-            previous_time: previous_time.assume_offset(offset!(+1)),
-            previous_project_absorption: value.get(2),
-            previous_offseter_absorption: value.get(3),
-            previous_yielder_absorption: value.get(4),
-            current_project_absorption: value.get(5),
-            current_offseter_absorption: value.get(6),
-            current_yielder_absorption: value.get(7),
-            project_absorption: value.get(8),
-            offseter_absorption: value.get(9),
-            yielder_absorption: value.get(10),
-            time: time.assume_offset(offset!(+1)),
-            yielder_id: None,
-        }
-    }
-}
 
 #[enum_def]
 pub struct Yielder {
@@ -282,30 +262,19 @@ pub struct Yielder {
     pub total_deposited: U256,
     pub total_absorption: U256,
     pub snapshot_time: PrimitiveDateTime,
+    pub prices: Vec<U256>,
     pub project_id: Option<Uuid>,
     pub implementation_id: Option<Uuid>,
 }
 
 #[enum_def]
 #[derive(Debug)]
+#[deprecated(note = "use new yielder methods")]
 pub struct Provision {
     pub id: Uuid,
     pub amount: U256,
     pub time: OffsetDateTime,
     pub yielder_id: Option<Uuid>,
-}
-
-impl From<tokio_postgres::Row> for Provision {
-    fn from(value: tokio_postgres::Row) -> Self {
-        let time: PrimitiveDateTime = value.get(2);
-
-        Self {
-            id: value.get(0),
-            amount: value.get(1),
-            time: time.assume_offset(offset!(+1)),
-            yielder_id: None,
-        }
-    }
 }
 
 #[enum_def]

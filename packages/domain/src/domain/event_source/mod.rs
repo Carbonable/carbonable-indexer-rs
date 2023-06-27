@@ -101,8 +101,7 @@ impl From<Event> for &str {
                 YielderEvents::Claim => "yielder.claim",
                 YielderEvents::Deposit => "yielder.deposit",
                 YielderEvents::Withdraw => "yielder.withdraw",
-                YielderEvents::Snapshot => "yielder.snapshot",
-                YielderEvents::Provision => "yielder.provision",
+                YielderEvents::PriceUpdate => "yielder.price_update",
             },
         }
     }
@@ -138,8 +137,7 @@ impl From<&str> for Event {
             "yielder.upgraded" => Event::Yielder(YielderEvents::Upgraded),
             "yielder.deposit" => Event::Yielder(YielderEvents::Deposit),
             "yielder.withdraw" => Event::Yielder(YielderEvents::Withdraw),
-            "yielder.snapshot" => Event::Yielder(YielderEvents::Snapshot),
-            "yielder.provision" => Event::Yielder(YielderEvents::Provision),
+            "yielder.price_udpate" => Event::Yielder(YielderEvents::PriceUpdate),
             &_ => panic!("Unknown event {value}"),
         }
     }

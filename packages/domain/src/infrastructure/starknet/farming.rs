@@ -6,7 +6,6 @@ use time::OffsetDateTime;
 
 use crate::infrastructure::{
     flatten,
-    postgres::entity::{Provision, Snapshot},
     view_model::{
         customer::CustomerToken,
         farming::{
@@ -30,9 +29,6 @@ use super::{
     },
     portfolio::{get_balance_of, get_slot_of, get_token_id, get_value_of_token_in_slot},
 };
-
-// Bisextiles bitch
-const SECONDS_IN_YEAR: u64 = 31557600;
 
 /// Get cumulated value of tokens in slot for customer
 pub async fn get_value_of(
@@ -145,49 +141,10 @@ pub async fn get_customer_global_farming_data(
     Ok(aggregated_data.into())
 }
 
-/// Calculates project APR base on :
-/// Explanation :
-/// APR = ratio / dt
-/// ratio = 100 * amount_$_provision / total_$_project
-/// dt = (time_snapshot(n) - time_snapshot(n-1)) / nb_seconds_per_year
+/// Apr computation is now made on-chain
 ///
-/// * `snapshots` - [Vec<Snapshots>] - Yielder snapshots
-/// * `provisions` - [Vec<Provision>] - Yielder provision - an admin deposit cashflow on yielder
-/// represents project carbon credit sale
-/// * `total_value` - [U256] - Total value of a slot * unit_price of minter
-///
-fn get_project_current_apr(
-    snapshots: Vec<Snapshot>,
-    provisions: Vec<Provision>,
-    total_value: U256,
-) -> Result<ProjectApr, ModelError> {
-    if snapshots.is_empty() {
-        return Ok(ProjectApr::None);
-    }
-    if provisions.is_empty() {
-        return Ok(ProjectApr::None);
-    }
-    let provision = provisions
-        .last()
-        .expect("should have at least one provision");
-
-    let snapshot = match snapshots.iter().filter(|s| s.time <= provision.time).last() {
-        Some(s) => s,
-        None => return Err(ModelError::InvalidDataSet("snapshots".to_string())),
-    };
-
-    let diff_time = snapshot.time - snapshot.previous_time;
-
-    let numerator = (U256(crypto_bigint::U256::from_u8(100))
-        * provision.amount
-        * snapshot.project_absorption
-        * U256(crypto_bigint::U256::from_u64(SECONDS_IN_YEAR)))
-        * U256(crypto_bigint::U256::from_u32(1000));
-    let denominator = total_value * snapshot.yielder_absorption * (U256::from(diff_time));
-
-    let apr = numerator / denominator;
-
-    Ok(ProjectApr::Value(apr.to_big_decimal(3)))
+fn get_project_current_apr(_total_value: U256) -> Result<ProjectApr, ModelError> {
+    Ok(ProjectApr::None)
 }
 
 /// Get project status
@@ -208,11 +165,9 @@ fn get_project_status(farming_data: &CompleteFarmingData) -> ProjectStatus {
 pub async fn get_unconnected_project_data(
     global_data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
-    snapshots: Vec<Snapshot>,
-    provisions: Vec<Provision>,
     total_value: U256,
 ) -> Result<UnconnectedFarmingData, ModelError> {
-    let apr = get_project_current_apr(snapshots, provisions, total_value)?;
+    let apr = get_project_current_apr(total_value)?;
     let status = get_project_status(&farming_data);
 
     let provider = Arc::new(get_starknet_rpc_from_env()?);
@@ -316,14 +271,12 @@ pub async fn get_customer_details_project_data(
     project_data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
     wallet: &str,
-    snapshots: Vec<Snapshot>,
-    provisions: Vec<Provision>,
     total_value: U256,
     customer_tokens: &mut [CustomerToken],
 ) -> Result<CustomerDetailsProjectData, ModelError> {
     let mut customer_details_project_data = CustomerDetailsProjectData::default();
 
-    let apr = get_project_current_apr(snapshots, provisions, total_value)?;
+    let apr = get_project_current_apr(total_value)?;
     let mut builder = customer_details_project_data
         .with_contracts(&project_data, &farming_data)
         .with_apr(apr);

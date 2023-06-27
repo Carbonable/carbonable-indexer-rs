@@ -79,21 +79,6 @@ pub async fn unconnected(
             ))
         }
     };
-    let yielder_id = match farming_data.yielder_id {
-        Some(id) => id,
-        None => {
-            return Ok(HttpResponse::NotFound().json(
-                ServerResponse::<UnconnectedFarmingData>::Error {
-                    code: 404,
-                    error_message: "Not found".to_string(),
-                    message: "Project not found".to_string(),
-                },
-            ))
-        }
-    };
-
-    let snapshots = project_model.get_snapshots(yielder_id).await?;
-    let provisions = project_model.get_provisions(yielder_id).await?;
 
     if project_data.is_empty() || farming_data.absorptions.is_empty() {
         return Ok(HttpResponse::NotFound().json(
@@ -110,8 +95,7 @@ pub async fn unconnected(
         .await?;
 
     let unconnected_data_project =
-        get_unconnected_project_data(project, farming_data, snapshots, provisions, total_value)
-            .await?;
+        get_unconnected_project_data(project, farming_data, total_value).await?;
     Ok(HttpResponse::Ok().json(ServerResponse::Data {
         data: unconnected_data_project,
     }))
