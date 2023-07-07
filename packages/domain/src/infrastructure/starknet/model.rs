@@ -1,6 +1,7 @@
 use bigdecimal::{BigDecimal, ToPrimitive};
 use crypto_bigint::Encoding;
 use std::{collections::HashMap, sync::Arc};
+use tracing::error;
 
 use starknet::{
     core::{
@@ -102,12 +103,20 @@ pub(crate) async fn load_blockchain_data(
         let handle = tokio::spawn(async move {
             let contract_entrypoint = selector;
 
-            let res = provider
+            let res = match provider
                 .call(
                     get_call_function(&address, contract_entrypoint, vec![]),
                     &BlockId::Tag(BlockTag::Latest),
                 )
-                .await?;
+                .await
+            {
+                Ok(res) => res,
+                Err(e) => {
+                    println!("{contract_entrypoint}");
+                    error!("failed to fetch data from starknet: {:#?}", e);
+                    return Err(ModelError::ProviderError(e));
+                }
+            };
             Ok((selector.to_string(), StarknetValue::new(res)))
         });
 

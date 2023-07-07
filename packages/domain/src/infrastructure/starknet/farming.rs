@@ -1,3 +1,4 @@
+use bigdecimal::BigDecimal;
 use starknet::{
     core::types::FieldElement,
     providers::jsonrpc::{HttpTransport, JsonRpcClient},
@@ -143,8 +144,31 @@ pub async fn get_customer_global_farming_data(
 
 /// Apr computation is now made on-chain
 ///
-fn get_project_current_apr(_total_value: U256) -> Result<ProjectApr, ModelError> {
-    Ok(ProjectApr::None)
+async fn get_project_current_apr(
+    yielder_address: &Option<String>,
+    minter_address: &Option<String>,
+) -> Result<ProjectApr, ModelError> {
+    let yielder = match yielder_address {
+        Some(y) => y,
+        None => return Ok(ProjectApr::None),
+    };
+    let minter = match minter_address {
+        Some(m) => m,
+        None => return Ok(ProjectApr::None),
+    };
+
+    let provider = Arc::new(get_starknet_rpc_from_env()?);
+    let values = [(
+        yielder.to_string(),
+        "getApr",
+        vec![FieldElement::from_hex_be(&minter.to_string()).unwrap()],
+    )];
+    let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
+
+    let num: BigDecimal = felt_to_u256(*data[0].first().unwrap()).to_big_decimal(4);
+    let den: BigDecimal = felt_to_u256(*data[0].last().unwrap()).to_big_decimal(4);
+
+    Ok(ProjectApr::Value(num / den))
 }
 
 /// Get project status
@@ -165,9 +189,10 @@ fn get_project_status(farming_data: &CompleteFarmingData) -> ProjectStatus {
 pub async fn get_unconnected_project_data(
     global_data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
-    total_value: U256,
+    _total_value: U256,
 ) -> Result<UnconnectedFarmingData, ModelError> {
-    let apr = get_project_current_apr(total_value)?;
+    let apr = get_project_current_apr(&farming_data.yielder_address, &farming_data.minter_address)
+        .await?;
     let status = get_project_status(&farming_data);
 
     let provider = Arc::new(get_starknet_rpc_from_env()?);
@@ -271,12 +296,13 @@ pub async fn get_customer_details_project_data(
     project_data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
     wallet: &str,
-    total_value: U256,
+    _total_value: U256,
     customer_tokens: &mut [CustomerToken],
 ) -> Result<CustomerDetailsProjectData, ModelError> {
     let mut customer_details_project_data = CustomerDetailsProjectData::default();
 
-    let apr = get_project_current_apr(total_value)?;
+    let apr = get_project_current_apr(&farming_data.yielder_address, &farming_data.minter_address)
+        .await?;
     let mut builder = customer_details_project_data
         .with_contracts(&project_data, &farming_data)
         .with_apr(apr);

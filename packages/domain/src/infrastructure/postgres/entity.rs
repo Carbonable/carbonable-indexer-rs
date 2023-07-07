@@ -261,6 +261,7 @@ pub struct Yielder {
     pub address: String,
     pub total_deposited: U256,
     pub total_absorption: U256,
+    #[deprecated(note = "use new yielder methods")]
     pub snapshot_time: PrimitiveDateTime,
     pub prices: Vec<U256>,
     pub project_id: Option<Uuid>,

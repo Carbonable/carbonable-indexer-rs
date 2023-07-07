@@ -22,7 +22,7 @@ RUN set -eux; \
     export DEBIAN_FRONTEND=noninteractive; \
     echo "deb http://deb.debian.org/debian unstable main" >> /etc/apt/sources.list; \
     apt update; \
-    apt install --yes pkg-config ca-certificates openssl libssl-dev protobuf-compiler=3.21.12-3; \
+    apt install --yes pkg-config ca-certificates openssl libssl-dev protobuf-compiler=3.21.12-6; \
     apt clean autoclean; \
     apt autoremove --yes; \
     rm -rf /var/lib/apt/* /var/lib/dpkg/* /var/lib/cache/* /var/lib/log/*; \

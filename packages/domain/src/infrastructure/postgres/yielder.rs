@@ -35,7 +35,6 @@ impl PostgresYielder {
                 YielderIden::Address,
                 YielderIden::TotalDeposited,
                 YielderIden::TotalAbsorption,
-                YielderIden::SnapshotTime,
                 YielderIden::ProjectId,
                 YielderIden::ImplementationId,
             ])
@@ -49,10 +48,6 @@ impl PostgresYielder {
                 data.get_mut("getTotalAbsorption")
                     .expect("should have totalAbsorption")
                     .resolve("u64")
-                    .into(),
-                data.get_mut("getSnapshotedTime")
-                    .expect("should have snapshotTime")
-                    .resolve("datetime")
                     .into(),
                 project_id.into(),
                 implementation_id.into(),

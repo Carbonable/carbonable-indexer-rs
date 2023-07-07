@@ -8,6 +8,7 @@ mod m20230510_153033_add_sale_date;
 mod m20230523_144915_add_forecasted_apr;
 mod m20230601_135331_add_project_value;
 mod m20230627_084338_add_new_yielder;
+mod m20230630_091418_remove_snapshoted_time;
 
 pub struct Migrator;
 
@@ -23,6 +24,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20230523_144915_add_forecasted_apr::Migration),
             Box::new(m20230601_135331_add_project_value::Migration),
             Box::new(m20230627_084338_add_new_yielder::Migration),
+            Box::new(m20230630_091418_remove_snapshoted_time::Migration),
         ]
     }
 }

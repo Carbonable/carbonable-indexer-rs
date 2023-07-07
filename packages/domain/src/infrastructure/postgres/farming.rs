@@ -151,7 +151,10 @@ impl PostgresFarming {
                 (YielderIden::Table, YielderIden::Id),
                 (YielderIden::Table, YielderIden::Address),
             ])
-            .columns([(MinterIden::Table, MinterIden::Id)])
+            .columns([
+                (MinterIden::Table, MinterIden::Id),
+                (MinterIden::Table, MinterIden::Address),
+            ])
             .column((ProjectIden::Table, ProjectIden::TotalSupply))
             .column((
                 Alias::new("project_implementation"),

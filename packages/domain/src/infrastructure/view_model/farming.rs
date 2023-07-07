@@ -133,6 +133,7 @@ pub struct CompleteFarmingData {
     pub yielder_id: Option<Uuid>,
     pub yielder_address: Option<String>,
     pub minter_id: Option<Uuid>,
+    pub minter_address: Option<String>,
     pub total_value: Option<U256>,
     pub project_abi: Option<serde_json::Value>,
     pub minter_abi: Option<serde_json::Value>,
@@ -162,12 +163,13 @@ impl From<tokio_postgres::Row> for CompleteFarmingData {
             yielder_id: value.get(10),
             yielder_address: value.get(11),
             minter_id: value.get(12),
-            total_value: value.get(13),
-            project_abi: value.get(14),
-            minter_abi: value.get(15),
-            offseter_abi: value.get(16),
-            yielder_abi: value.get(17),
-            payment_abi: value.get(18),
+            minter_address: value.get(13),
+            total_value: value.get(14),
+            project_abi: value.get(15),
+            minter_abi: value.get(16),
+            offseter_abi: value.get(17),
+            yielder_abi: value.get(18),
+            payment_abi: value.get(19),
         }
     }
 }
