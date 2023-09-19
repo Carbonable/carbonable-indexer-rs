@@ -334,11 +334,7 @@ impl MigrationTrait for Migration {
                             .binary()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(YielderIden::SnapshotTime)
-                            .date_time()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(YielderIden::SnapshotTime).date_time())
                     .col(ColumnDef::new(YielderIden::ProjectId).uuid().null())
                     .col(ColumnDef::new(YielderIden::ImplementationId).uuid().null())
                     .foreign_key(
@@ -418,11 +414,7 @@ impl MigrationTrait for Migration {
                             .binary()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(OffseterIden::MinClaimable)
-                            .binary()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(OffseterIden::MinClaimable).binary())
                     .col(ColumnDef::new(OffseterIden::ProjectId).uuid().null())
                     .col(ColumnDef::new(OffseterIden::ImplementationId).uuid().null())
                     .foreign_key(

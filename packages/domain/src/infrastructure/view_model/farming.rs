@@ -57,6 +57,7 @@ pub struct CustomerGlobalDataForComputation {
     pub offseter_address: String,
     pub slot: U256,
     pub project_value: U256,
+    pub minter_address: String,
 }
 
 impl From<tokio_postgres::Row> for CustomerGlobalDataForComputation {
@@ -74,6 +75,7 @@ impl From<tokio_postgres::Row> for CustomerGlobalDataForComputation {
             offseter_address: value.get(9),
             slot: value.get(10),
             project_value: value.get(11),
+            minter_address: value.get(12),
         }
     }
 }
@@ -258,9 +260,11 @@ impl
         let offseter_deposited: U256 = StarknetValue::new(blockchain_response[3].clone())
             .resolve("u256")
             .into();
-        let min_claimable: U256 = StarknetValue::new(blockchain_response[4].clone())
-            .resolve("u256")
-            .into();
+        // TODO: Use this value again
+        // let min_claimable: U256 = StarknetValue::new(blockchain_response[4].clone())
+        // .resolve("u256")
+        // .into();
+        let min_claimable: U256 = U256::from(crypto_bigint::U256::from_u64(1000000));
 
         let total_value = yielder_deposited + offseter_deposited;
         Self {
@@ -376,6 +380,7 @@ impl CustomerDetailsProjectData {
         value_of: &U256,
         customer_tokens: &mut [CustomerToken],
     ) -> &mut Self {
+        println!("\n\n\n{:#?}\n\n\n", data);
         let current_absorption: U256 = StarknetValue::new(data[0].clone()).resolve("u256").into();
         let offseter_deposited_of: U256 =
             StarknetValue::new(data[1].clone()).resolve("u256").into();
@@ -389,7 +394,9 @@ impl CustomerDetailsProjectData {
         let yielder_total_deposited: U256 =
             StarknetValue::new(data[8].clone()).resolve("u256").into();
         let project_value: U256 = farming_data.project_value;
-        let min_to_claim: U256 = StarknetValue::new(data[9].clone()).resolve("u256").into();
+        // TODO: Use real value
+        // let min_to_claim: U256 = StarknetValue::new(data[9].clone()).resolve("u256").into();
+        let min_to_claim: U256 = U256::from(crypto_bigint::U256::from_u64(1000000));
 
         self.overview.total_removal =
             Mass::<U256>::from_blockchain(current_absorption, project.ton_equivalent).into();

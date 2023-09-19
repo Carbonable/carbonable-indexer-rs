@@ -84,14 +84,14 @@ pub async fn get_connection(database_uri: Option<&str>) -> Result<Pool, Postgres
 
 #[derive(Clone, Debug)]
 pub struct PostgresModels<C: Contract> {
-    pub project: Arc<PostgresProject>,
+    pub project: Arc<PostgresProject<C>>,
     pub implementation: Arc<PostgresImplementation>,
     pub uri: Arc<PostgresUri>,
     pub badge: Arc<PostgresBadge>,
     pub minter: Arc<PostgresMinter<C>>,
     pub payment: Arc<PostgresPayment>,
-    pub offseter: Arc<PostgresOffseter>,
-    pub yielder: Arc<PostgresYielder>,
+    pub offseter: Arc<PostgresOffseter<C>>,
+    pub yielder: Arc<PostgresYielder<C>>,
 }
 
 impl<C> PostgresModels<C>
@@ -284,17 +284,13 @@ pub async fn find_or_create_uri_3525(
     }
 }
 
+/// * implementation_hash - [&str] - The class hash
 pub async fn find_or_create_implementation(
     db_model: Arc<PostgresImplementation>,
     provider: Arc<JsonRpcClient<HttpTransport>>,
     address: &str,
-    implementation_hash: &str,
 ) -> Result<Implementation, PostgresError> {
-    let abi = get_proxy_abi(
-        provider,
-        FieldElement::from_hex_be(implementation_hash).unwrap(),
-    )
-    .await?;
+    let abi = get_proxy_abi(provider, FieldElement::from_hex_be(address).unwrap()).await?;
     match db_model.find_by_address(address).await? {
         Some(i) => Ok(i),
         None => Ok(db_model.create(address, abi).await?),

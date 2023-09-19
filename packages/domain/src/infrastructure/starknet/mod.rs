@@ -119,12 +119,13 @@ fn get_sequencer_domain(env: &StarknetEnv) -> Result<String, SequencerError> {
 }
 
 /// Get proxy class abi
+/// * implementation_hash - contract address
 pub async fn get_proxy_abi(
     provider: Arc<JsonRpcClient<HttpTransport>>,
     implementation_hash: FieldElement,
 ) -> Result<serde_json::Value, ModelError> {
     let res = provider
-        .get_class(&BlockId::Tag(BlockTag::Latest), implementation_hash)
+        .get_class_at(&BlockId::Tag(BlockTag::Latest), implementation_hash)
         .await?;
     match res {
         starknet::providers::jsonrpc::models::ContractClass::Sierra(c) => {

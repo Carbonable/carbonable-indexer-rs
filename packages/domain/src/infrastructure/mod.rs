@@ -11,7 +11,10 @@ pub mod view_model;
 /// Flattens error into domain error to handle Result<> spawned tasks
 /// * `handle` - [JoinHandle] - Handle to a spawned task
 ///
-pub async fn flatten<T, E: std::error::Error + std::convert::From<tokio::task::JoinError>>(
+pub async fn flatten<
+    T: std::fmt::Debug,
+    E: std::error::Error + std::convert::From<tokio::task::JoinError>,
+>(
     handle: JoinHandle<Result<T, E>>,
 ) -> Result<T, E> {
     match handle.await {

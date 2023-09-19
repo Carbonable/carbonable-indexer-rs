@@ -225,15 +225,15 @@ pub async fn migrate_customer_token<'a>(
 pub async fn update_token_value<'a>(
     tx: &Transaction<'a>,
     contract_address: &str,
-    token_id: &U256,
+    to_token_id: &U256,
     value: &U256,
 ) -> Result<(), PostgresError> {
     let (sql, values) = Query::update()
         .table(CustomerTokenIden::Table)
-        .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*token_id))
+        .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*to_token_id))
         .and_where(Expr::col(CustomerTokenIden::ProjectAddress).eq(contract_address))
         .values([
-            (CustomerTokenIden::TokenId, token_id.into()),
+            (CustomerTokenIden::TokenId, to_token_id.into()),
             (CustomerTokenIden::Value, value.into()),
         ])
         .build_postgres(PostgresQueryBuilder);
@@ -245,6 +245,56 @@ pub async fn update_token_value<'a>(
         }
         Err(e) => {
             error!("project.transfer_value.update: {:#?}", e);
+            Err(PostgresError::from(e))
+        }
+    }
+}
+
+pub async fn decrease_token_value<'a>(
+    tx: &Transaction<'a>,
+    contract_address: &str,
+    token_id: &U256,
+    value: &U256,
+) -> Result<(), PostgresError> {
+    let (q, values) = Query::select()
+        .from(CustomerTokenIden::Table)
+        .column((CustomerTokenIden::Table, CustomerTokenIden::Value))
+        .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*token_id))
+        .and_where(Expr::col(CustomerTokenIden::ProjectAddress).eq(contract_address))
+        .build_postgres(PostgresQueryBuilder);
+
+    match tx.query_opt(q.as_str(), &values.as_params()).await {
+        Ok(Some(r)) => {
+            let old_value = r.get::<usize, U256>(0);
+            let new_value = old_value - *value;
+
+            let (sql, values) = Query::update()
+                .table(CustomerTokenIden::Table)
+                .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*token_id))
+                .and_where(Expr::col(CustomerTokenIden::ProjectAddress).eq(contract_address))
+                .values([
+                    (CustomerTokenIden::TokenId, token_id.into()),
+                    (CustomerTokenIden::Value, new_value.into()),
+                ])
+                .build_postgres(PostgresQueryBuilder);
+
+            match tx.execute(sql.as_str(), &values.as_params()).await {
+                Ok(res) => {
+                    debug!("project.transfer_value.decrease_token_value: {:#?}", res);
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("project.transfer_value.update: {:#?}", e);
+                    Err(PostgresError::from(e))
+                }
+            }
+        }
+        Ok(None) => {
+            debug!("No customer_token to update");
+            Ok(())
+        }
+        Err(e) => {
+            error!("project.transfer_value.decrease_token_value: {:#?}", e);
             Err(PostgresError::from(e))
         }
     }

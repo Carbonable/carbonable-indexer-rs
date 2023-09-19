@@ -43,7 +43,6 @@ impl StarknetModel<HashMap<String, StarknetValue>> for MinterModel<Erc721> {
             self.provider.clone(),
             self.address,
             &[
-                "getImplementationHash",
                 "getCarbonableProjectAddress",
                 "getPaymentTokenAddress",
                 "isPreSaleOpen",
@@ -64,24 +63,23 @@ impl StarknetModel<HashMap<String, StarknetValue>> for MinterModel<Erc721> {
 #[async_trait::async_trait]
 impl StarknetModel<HashMap<String, StarknetValue>> for MinterModel<Erc3525> {
     async fn load(&self) -> Result<HashMap<String, StarknetValue>, ModelError> {
-        info!("loading minter with address {:#x}", self.address);
+        info!("loading 3525 minter with address {:#x}", self.address);
         Ok(load_blockchain_data(
             self.provider.clone(),
             self.address,
             &[
-                "getImplementationHash",
-                "getCarbonableProjectAddress",
-                "getPaymentTokenAddress",
-                "isPreSaleOpen",
-                "isPublicSaleOpen",
-                "getMaxValuePerTx",
-                "getMinValuePerTx",
-                "getReservedValue",
-                "getUnitPrice",
-                "getMaxValue",
-                "getWhitelistMerkleRoot",
-                "getCarbonableProjectSlot",
-                "isSoldOut",
+                "get_carbonable_project_address",
+                "get_payment_token_address",
+                "is_pre_sale_open",
+                "is_public_sale_open",
+                "get_max_value_per_tx",
+                "get_min_value_per_tx",
+                "get_reserved_value",
+                "get_unit_price",
+                "get_max_value",
+                "get_whitelist_merkle_root",
+                "get_carbonable_project_slot",
+                "is_sold_out",
             ],
         )
         .await?)

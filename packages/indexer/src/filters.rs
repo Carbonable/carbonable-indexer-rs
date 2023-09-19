@@ -44,7 +44,7 @@ pub fn configure_stream_filters<P: AsRef<std::path::Path>>(
 
     let config = Configuration::<Filter>::default()
         .with_starting_block(*last_block_id)
-        .with_batch_size(app_config.batch_size)
+        // .with_batch_size(app_config.batch_size)
         .with_finality(DataFinality::DataStatusPending)
         .with_filter(|mut filter| {
             filter.with_header(HeaderFilter::weak());

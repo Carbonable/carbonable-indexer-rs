@@ -43,7 +43,6 @@ impl StarknetModel<HashMap<String, StarknetValue>> for YielderModel<Erc721> {
             self.provider.clone(),
             self.address,
             &[
-                "getImplementationHash",
                 "getCarbonableProjectAddress",
                 "getTotalAbsorption",
                 "getTotalDeposited",
@@ -57,17 +56,15 @@ impl StarknetModel<HashMap<String, StarknetValue>> for YielderModel<Erc721> {
 #[async_trait::async_trait]
 impl StarknetModel<HashMap<String, StarknetValue>> for YielderModel<Erc3525> {
     async fn load(&self) -> Result<HashMap<String, StarknetValue>, ModelError> {
-        info!("loading yielder with address {:#x}", self.address);
+        info!("loading 3525 yielder with address {:#x}", self.address);
         Ok(load_blockchain_data(
             self.provider.clone(),
             self.address,
             &[
-                "getImplementationHash",
-                "getCarbonableProjectAddress",
-                "getTotalAbsorption",
-                "getTotalDeposited",
-                "getSnapshotedTime",
-                "getCarbonableProjectSlot",
+                "get_carbonable_project_address",
+                "get_total_absorption",
+                "get_total_deposited",
+                "get_carbonable_project_slot",
             ],
         )
         .await?)

@@ -35,19 +35,6 @@ pub async fn project_details(
         }
     };
 
-    let yielder_id = match farming_data.yielder_id {
-        Some(d) => d,
-        None => {
-            return Ok(HttpResponse::NotFound().json(
-                ServerResponse::<UnconnectedFarmingData>::Error {
-                    code: 404,
-                    error_message: "Not found".to_string(),
-                    message: "Project not found".to_string(),
-                },
-            ))
-        }
-    };
-
     if project_data.is_empty() {
         return Ok(HttpResponse::NotFound().json(
             ServerResponse::<UnconnectedFarmingData>::Error {
@@ -57,26 +44,14 @@ pub async fn project_details(
             },
         ));
     }
-    let snapshots = project_model.get_snapshots(yielder_id).await?;
-    let provisions = project_model.get_provisions(yielder_id).await?;
     let project = project_data.pop().unwrap();
-    let total_value = project_model
-        .get_project_value_times_unit_price(project.id)
-        .await?;
     let mut customer_tokens = customer_token_model
         .get_customer_tokens(&wallet, &project.project_address, &project.slot)
         .await?;
 
-    let customer_project_data = get_customer_details_project_data(
-        project,
-        farming_data,
-        &wallet,
-        snapshots,
-        provisions,
-        total_value,
-        &mut customer_tokens,
-    )
-    .await?;
+    let customer_project_data =
+        get_customer_details_project_data(project, farming_data, &wallet, &mut customer_tokens)
+            .await?;
 
     Ok(HttpResponse::Ok().json(ServerResponse::Data {
         data: customer_project_data,

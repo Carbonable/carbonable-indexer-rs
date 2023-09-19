@@ -10,8 +10,11 @@ use std::{
 };
 use tracing::info;
 
+use crate::latest::get_latest_block;
+
 pub mod common;
 pub mod farming;
+pub mod latest;
 pub mod launchpad;
 pub mod portfolio;
 pub mod project;
@@ -55,6 +58,7 @@ async fn main() -> std::io::Result<()> {
                 db_client_pool: db_client_pool.clone(),
             }))
             .service(ping)
+            .service(web::scope("/latest").route("/block", web::get().to(get_latest_block)))
             .service(web::scope("/portfolio").route(
                 "/{wallet}",
                 web::get().to(portfolio::get_by_wallet::get_by_wallet),

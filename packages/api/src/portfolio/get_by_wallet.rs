@@ -2,17 +2,20 @@ use serde::Serialize;
 
 use actix_web::{web, HttpResponse, Responder};
 use carbonable_domain::{
-    domain::{crypto::U256, project::ProjectError, SlotValue},
+    domain::{crypto::U256, project::ProjectError, Erc721, SlotValue},
     infrastructure::{
         flatten,
-        postgres::{entity::ErcImplementation, project::PostgresProject},
+        postgres::{
+            customer::PostgresCustomer, entity::ErcImplementation, project::PostgresProject,
+        },
         starknet::{
             ensure_starknet_wallet, get_starknet_rpc_from_env,
             model::{parallelize_blockchain_rpc_calls, StarknetValue, StarknetValueResolver},
             portfolio::{load_erc_3525_portfolio, load_erc_721_portfolio},
         },
-        view_model::portfolio::{
-            PortfolioAbi, ProjectWithMinterAndPaymentViewModel, ProjectWithTokens,
+        view_model::{
+            customer::CustomerToken,
+            portfolio::{PortfolioAbi, ProjectWithMinterAndPaymentViewModel, ProjectWithTokens},
         },
     },
 };
@@ -56,10 +59,10 @@ async fn aggregate_721_tokens(
 async fn aggregate_3525_tokens(
     project: ProjectWithMinterAndPaymentViewModel,
     wallet: String,
+    customer_tokens: Vec<CustomerToken>,
 ) -> Result<Option<ProjectWithTokens>, ProjectError> {
-    let slot = project.slot.expect("erc3525 should have slot");
-
-    let tokens = load_erc_3525_portfolio(&project, &project.address, &wallet, &slot).await?;
+    let tokens =
+        load_erc_3525_portfolio(&project, &project.address, &customer_tokens.as_slice()).await?;
     if tokens.is_empty() {
         return Ok(None);
     }
@@ -68,12 +71,12 @@ async fn aggregate_3525_tokens(
     let values = [
         (
             project.yielder_address.to_string(),
-            "getDepositedOf",
+            "get_deposited_of",
             vec![FieldElement::from_hex_be(&wallet).unwrap()],
         ),
         (
             project.offseter_address.to_string(),
-            "getDepositedOf",
+            "get_deposited_of",
             vec![FieldElement::from_hex_be(&wallet).unwrap()],
         ),
     ];
@@ -117,10 +120,12 @@ fn total_amount(unit_price: U256, _payment_decimals: U256, amount: U256) -> U256
 async fn aggregate_tokens_with_project(
     projects_data: Vec<ProjectWithMinterAndPaymentViewModel>,
     wallet: String,
+    customer_tokens: Vec<CustomerToken>,
 ) -> Result<Vec<Option<ProjectWithTokens>>, ApiError> {
     let mut handles = vec![];
     for project in projects_data.into_iter() {
         let wallet_address = wallet.clone();
+        let tokens = customer_tokens.clone();
         let handle = match &project.erc_implementation {
             ErcImplementation::Enum => {
                 return Err(ApiError::ProjectError(
@@ -130,9 +135,9 @@ async fn aggregate_tokens_with_project(
             ErcImplementation::Erc721 => {
                 tokio::spawn(async move { aggregate_721_tokens(project, wallet_address).await })
             }
-            ErcImplementation::Erc3525 => {
-                tokio::spawn(async move { aggregate_3525_tokens(project, wallet_address).await })
-            }
+            ErcImplementation::Erc3525 => tokio::spawn(async move {
+                aggregate_3525_tokens(project, wallet_address, tokens.to_vec()).await
+            }),
         };
         handles.push(flatten(handle));
     }
@@ -161,11 +166,17 @@ pub async fn get_by_wallet(
     let mut wallet = wallet_param.into_inner();
     ensure_starknet_wallet(&mut wallet);
 
-    let project_model = PostgresProject::new(data.db_client_pool.clone());
+    let project_model: PostgresProject<Erc721> = PostgresProject::new(data.db_client_pool.clone());
+    let customer_token_model = PostgresCustomer::new(data.db_client_pool.clone());
+
+    let customer_tokens = customer_token_model
+        .get_customer_erc3525_tokens(&wallet)
+        .await?;
+
     let projects_data = project_model
         .find_projects_with_minter_and_payment()
         .await?;
-    let projects = aggregate_tokens_with_project(projects_data, wallet).await?;
+    let projects = aggregate_tokens_with_project(projects_data, wallet, customer_tokens).await?;
     let filtered_projects: Vec<ProjectWithTokens> = projects
         .into_iter()
         .filter(|p| p.is_some())

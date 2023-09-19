@@ -81,7 +81,7 @@ impl StarknetModel<Erc3525Metadata> for UriModel<Erc3525> {
     async fn load(&self) -> Result<Erc3525Metadata, ModelError> {
         let metadata: Erc3525Metadata = self
             .client
-            .get(self.ipfs_link.clone())
+            .get(self.ipfs_link.to_owned())
             .send()
             .await?
             .json()
