@@ -45,11 +45,6 @@ where
         let badge_model = BadgeModel::new(FieldElement::from_hex_be(&address).unwrap())?;
         let mut data = badge_model.load().await?;
 
-        let implementation_hash: String = data
-            .get_mut("getImplementationHash")
-            .expect("should have implementation hash")
-            .resolve("address")
-            .into();
         let project_uri: String = data
             .get_mut("contractURI")
             .expect("should have contract uri")
@@ -60,7 +55,6 @@ where
             db_models.implementation.clone(),
             badge_model.provider,
             address.as_str(),
-            implementation_hash.as_str(),
         )
         .await?;
         let uri = find_or_create_badge_uri(

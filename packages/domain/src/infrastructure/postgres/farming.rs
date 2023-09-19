@@ -85,6 +85,7 @@ impl PostgresFarming {
             .column((OffseterIden::Table, OffseterIden::Address))
             .column((ProjectIden::Table, ProjectIden::Slot))
             .column((ProjectIden::Table, ProjectIden::ProjectValue))
+            .column((MinterIden::Table, MinterIden::Address))
             .from(ProjectIden::Table)
             .left_join(
                 YielderIden::Table,

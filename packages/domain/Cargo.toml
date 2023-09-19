@@ -25,6 +25,7 @@ tracing.workspace = true
 ipfs-api-backend-hyper.workspace = true
 reqwest.workspace = true
 serde-aux.workspace = true
+sqlx.workspace = true
 sea-query.workspace = true
 time.workspace = true
 deadpool-postgres.workspace = true

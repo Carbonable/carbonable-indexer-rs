@@ -45,11 +45,6 @@ impl Seeder for ProjectSeeder<Erc721> {
         let db_models = self.db_models.clone();
         // fetch onchain project data
         let mut data = project_model.load().await?;
-        let implementation_hash: String = data
-            .get_mut("getImplementationHash")
-            .expect("should have implementation hash")
-            .resolve("address")
-            .into();
         let project_uri: String = data
             .get_mut("contractURI")
             .expect("should have contract uri")
@@ -59,7 +54,6 @@ impl Seeder for ProjectSeeder<Erc721> {
             db_models.implementation.clone(),
             project_model.provider,
             address.as_str(),
-            implementation_hash.as_str(),
         )
         .await?;
         let uri = find_or_create_uri_721(
@@ -102,13 +96,8 @@ impl Seeder for ProjectSeeder<Erc3525> {
         // ERC-3525 has many slots that represent founded projects
         for slot in data.iter_mut() {
             let provider = project_model.provider.clone();
-            let implementation_hash: String = slot
-                .get_mut("getImplementationHash")
-                .expect("should have implementation hash")
-                .resolve("address")
-                .into();
             let project_uri: String = slot
-                .get_mut("slotURI")
+                .get_mut("slot_uri")
                 .expect("should have contract uri")
                 .resolve("string_array")
                 .into();
@@ -116,7 +105,6 @@ impl Seeder for ProjectSeeder<Erc3525> {
                 db_models.implementation.clone(),
                 provider,
                 address.as_str(),
-                implementation_hash.as_str(),
             )
             .await?;
             let uri = find_or_create_uri_3525(
@@ -139,7 +127,7 @@ impl Seeder for ProjectSeeder<Erc3525> {
                 .await?;
         }
         info!("Properly seeded project {}", address);
-        Ok(String::from("seeded"))
+        Ok("seeded".to_owned())
     }
 
     fn can_process(&self, seeder_type: String) -> bool {
@@ -164,13 +152,8 @@ impl ProjectSeeder<Erc3525> {
         let provider = project_model.provider.clone();
         let mut slot_data =
             map_multicall_to_hashmap(provider.clone(), &address, slot, slot_felt).await?;
-        let implementation_hash: String = slot_data
-            .get_mut("getImplementationHash")
-            .expect("should have implementation hash")
-            .resolve("address")
-            .into();
         let slot_uri: String = slot_data
-            .get_mut("slotURI")
+            .get_mut("slot_uri")
             .expect("should have slot uri")
             .resolve("string_array")
             .into();
@@ -179,7 +162,6 @@ impl ProjectSeeder<Erc3525> {
             db_models.implementation.clone(),
             provider,
             address.as_str(),
-            implementation_hash.as_str(),
         )
         .await?;
         let uri =
@@ -210,42 +192,41 @@ async fn map_multicall_to_hashmap(
 ) -> Result<HashMap<String, StarknetValue>, ModelError> {
     let calldata = [
         (
-            address.to_string(),
-            "slotURI",
+            address.to_owned(),
+            "slot_uri",
             vec![slot_felt, FieldElement::ZERO],
         ),
         (
-            address.to_string(),
-            "totalValue",
+            address.to_owned(),
+            "total_value",
             vec![slot_felt, FieldElement::ZERO],
         ),
         (
-            address.to_string(),
-            "getTonEquivalent",
+            address.to_owned(),
+            "get_ton_equivalent",
             vec![slot_felt, FieldElement::ZERO],
         ),
         (
-            address.to_string(),
-            "getTimes",
+            address.to_owned(),
+            "get_times",
             vec![slot_felt, FieldElement::ZERO],
         ),
         (
-            address.to_string(),
-            "getAbsorptions",
+            address.to_owned(),
+            "get_absorptions",
             vec![slot_felt, FieldElement::ZERO],
         ),
         (
-            address.to_string(),
-            "isSetup",
+            address.to_owned(),
+            "is_setup",
             vec![slot_felt, FieldElement::ZERO],
         ),
-        (address.to_string(), "getImplementationHash", vec![]),
-        (address.to_string(), "owner", vec![]),
-        (address.to_string(), "symbol", vec![]),
-        (address.to_string(), "valueDecimals", vec![]),
+        (address.to_owned(), "owner", vec![]),
+        (address.to_owned(), "symbol", vec![]),
+        (address.to_owned(), "value_decimals", vec![]),
         (
-            address.to_string(),
-            "getProjectValue",
+            address.to_owned(),
+            "get_project_value",
             vec![slot_felt, FieldElement::ZERO],
         ),
     ];
@@ -254,56 +235,53 @@ async fn map_multicall_to_hashmap(
     let mut slot_data = HashMap::new();
 
     let mut slot_uri = StarknetValue::new(data[0].clone());
-    slot_data.insert("slotURI".to_string(), slot_uri.clone());
+    slot_data.insert("slot_uri".to_owned(), slot_uri.clone());
     slot_data.insert(
-        "totalValue".to_string(),
+        "total_value".to_owned(),
         StarknetValue::new(data[1].clone()),
     );
     slot_data.insert(
-        "getTonEquivalent".to_string(),
+        "get_ton_equivalent".to_owned(),
         StarknetValue::new(data[2].clone()),
     );
-    slot_data.insert("getTimes".to_string(), StarknetValue::new(data[3].clone()));
+    slot_data.insert("get_times".to_owned(), StarknetValue::new(data[3].clone()));
     slot_data.insert(
-        "getAbsorptions".to_string(),
+        "get_absorptions".to_owned(),
         StarknetValue::new(data[4].clone()),
     );
-    slot_data.insert("isSetup".to_string(), StarknetValue::new(data[5].clone()));
+    slot_data.insert("is_setup".to_owned(), StarknetValue::new(data[5].clone()));
+    slot_data.insert("owner".to_owned(), StarknetValue::new(data[6].clone()));
+    slot_data.insert("symbol".to_owned(), StarknetValue::new(data[7].clone()));
     slot_data.insert(
-        "getImplementationHash".to_string(),
-        StarknetValue::new(data[6].clone()),
+        "value_decimals".to_owned(),
+        StarknetValue::new(data[8].clone()),
     );
-    slot_data.insert("owner".to_string(), StarknetValue::new(data[7].clone()));
-    slot_data.insert("symbol".to_string(), StarknetValue::new(data[8].clone()));
     slot_data.insert(
-        "valueDecimals".to_string(),
+        "get_project_value".to_owned(),
         StarknetValue::new(data[9].clone()),
-    );
-    slot_data.insert(
-        "getProjectValue".to_string(),
-        StarknetValue::new(data[10].clone()),
     );
 
     let uri: String = slot_uri.resolve("string_array").into();
+
     let uri_model = UriModel::<Erc3525>::new(uri)?;
     let metadata = uri_model.load().await?;
 
     slot_data.insert(
-        "name".to_string(),
+        "name".to_owned(),
         StarknetValue::from_resolved_value(StarknetResolvedValue::String(metadata.name)),
     );
     slot_data.insert(
-        "slug".to_string(),
+        "slug".to_owned(),
         StarknetValue::from_resolved_value(StarknetResolvedValue::String(get_slug_from_uri(
             &metadata.external_url,
         ))),
     );
     slot_data.insert(
-        "address".to_string(),
-        StarknetValue::from_resolved_value(StarknetResolvedValue::String(address.to_string())),
+        "address".to_owned(),
+        StarknetValue::from_resolved_value(StarknetResolvedValue::String(address.to_owned())),
     );
     slot_data.insert(
-        "slot".to_string(),
+        "slot".to_owned(),
         StarknetValue::from_resolved_value(StarknetResolvedValue::U256(U256(
             crypto_bigint::U256::from_u64(*slot),
         ))),

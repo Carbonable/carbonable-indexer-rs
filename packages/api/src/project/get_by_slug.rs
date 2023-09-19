@@ -1,7 +1,10 @@
 use actix_web::{web, HttpResponse, Responder};
-use carbonable_domain::infrastructure::{
-    postgres::project::PostgresProject,
-    view_model::project::{Project, ProjectViewModel},
+use carbonable_domain::{
+    domain::Erc721,
+    infrastructure::{
+        postgres::project::PostgresProject,
+        view_model::project::{Project, ProjectViewModel},
+    },
 };
 use reqwest::Client;
 
@@ -37,7 +40,7 @@ pub async fn get_by_slug(
     slug_param: web::Path<String>,
 ) -> impl Responder {
     let slug = slug_param.into_inner();
-    let postgres_model = PostgresProject::new(data.db_client_pool.clone());
+    let postgres_model: PostgresProject<Erc721> = PostgresProject::new(data.db_client_pool.clone());
     match postgres_model.find_by_slug(&slug).await {
         Ok(Some(p)) => {
             let with_uri = aggregate_metadata(p).await.unwrap();

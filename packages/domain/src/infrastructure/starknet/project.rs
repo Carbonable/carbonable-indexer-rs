@@ -56,7 +56,7 @@ impl ProjectModel<Erc3525> {
             .provider
             .clone()
             .call(
-                get_call_function(&self.address, "slotCount", vec![]),
+                get_call_function(&self.address, "slot_count", vec![]),
                 &BlockId::Tag(BlockTag::Latest),
             )
             .await?;
@@ -69,7 +69,7 @@ impl ProjectModel<Erc3525> {
             .call(
                 get_call_function(
                     &self.address,
-                    "slotByIndex",
+                    "slot_by_index",
                     vec![FieldElement::from(index), FieldElement::ZERO],
                 ),
                 &BlockId::Tag(BlockTag::Latest),
@@ -87,7 +87,6 @@ impl StarknetModel<HashMap<String, StarknetValue>> for ProjectModel<Erc721> {
             self.provider.clone(),
             self.address,
             &[
-                "getImplementationHash",
                 "name",
                 "symbol",
                 "totalSupply",
@@ -131,7 +130,7 @@ impl StarknetModel<Vec<HashMap<String, StarknetValue>>> for ProjectModel<Erc3525
         let generic_data = load_blockchain_data(
             self.provider.clone(),
             self.address,
-            &["getImplementationHash", "owner", "symbol", "valueDecimals"],
+            &["owner", "symbol", "value_decimals"],
         )
         .await?;
         let mut response_data: Vec<HashMap<String, StarknetValue>> = Vec::new();
@@ -145,23 +144,24 @@ impl StarknetModel<Vec<HashMap<String, StarknetValue>>> for ProjectModel<Erc3525
                 self.address,
                 slot,
                 &[
-                    "slotURI",
-                    "tokenSupplyInSlot",
-                    "getTonEquivalent",
-                    "getTimes",
-                    "getAbsorptions",
-                    "isSetup",
-                    "getProjectValue",
+                    "slot_uri",
+                    "token_supply_in_slot",
+                    "get_ton_equivalent",
+                    "get_times",
+                    "get_absorptions",
+                    "is_setup",
+                    "get_project_value",
                 ],
             )
             .await?;
             let slot_uri: String = slot_data
-                .get_mut("slotURI")
+                .get_mut("slot_uri")
                 .expect("should have slot uri")
                 .resolve("string_array")
                 .into();
             let uri_model = UriModel::<Erc3525>::new(slot_uri)?;
             let metadata = uri_model.load().await?;
+            info!("METADATA: {metadata:#?}");
             slot_data.insert(
                 "name".to_string(),
                 StarknetValue::from_resolved_value(StarknetResolvedValue::String(metadata.name)),

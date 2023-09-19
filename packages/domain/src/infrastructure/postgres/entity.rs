@@ -281,7 +281,7 @@ pub struct Yielder {
     pub address: String,
     pub total_deposited: U256,
     pub total_absorption: U256,
-    pub snapshot_time: PrimitiveDateTime,
+    pub snapshot_time: Option<PrimitiveDateTime>,
     pub project_id: Option<Uuid>,
     pub implementation_id: Option<Uuid>,
 }

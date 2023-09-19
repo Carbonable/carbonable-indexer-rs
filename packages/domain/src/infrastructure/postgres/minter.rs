@@ -136,12 +136,12 @@ impl PostgresMinter<Erc3525> {
         let client = self.db_client_pool.get().await?;
         let id = uuid::Uuid::new_v4();
         let unit_price: crypto_bigint::U256 = data
-            .get_mut("getUnitPrice")
+            .get_mut("get_unit_price")
             .expect("should have getUnitPrice")
             .resolve("u256")
             .into();
         let max_value: crypto_bigint::U256 = data
-            .get_mut("getMaxValue")
+            .get_mut("get_max_value")
             .expect("should have getMaxValue")
             .resolve("u256")
             .into();
@@ -168,33 +168,33 @@ impl PostgresMinter<Erc3525> {
             .values([
                 id.into(),
                 address.into(),
-                data.get_mut("getReservedValue")
+                data.get_mut("get_reserved_value")
                     .expect("should have getReservedValue")
                     .resolve("u256")
                     .into(),
-                data.get_mut("isPreSaleOpen")
+                data.get_mut("is_pre_sale_open")
                     .expect("should have isPreSaleOpen")
                     .resolve("bool")
                     .into(),
-                data.get_mut("isPublicSaleOpen")
+                data.get_mut("is_public_sale_open")
                     .expect("should have isPublicSaleOpen")
                     .resolve("bool")
                     .into(),
-                data.get_mut("getMaxValuePerTx")
+                data.get_mut("get_max_value_per_tx")
                     .expect("should have getMaxBuyPerTx")
                     .resolve("u256")
                     .into(),
-                data.get_mut("getMinValuePerTx")
+                data.get_mut("get_min_value_per_tx")
                     .expect("should have getMaxBuyPerTx")
                     .resolve("u256")
                     .into(),
                 U256::from(unit_price).into(),
                 U256::from(max_value).into(),
-                data.get_mut("getWhitelistMerkleRoot")
+                data.get_mut("get_whitelist_merkle_root")
                     .expect("should have getWhitelistMerkleRoot")
                     .resolve("u256")
                     .into(),
-                data.get_mut("isSoldOut")
+                data.get_mut("is_sold_out")
                     .expect("should have isSoldOut")
                     .resolve("bool")
                     .into(),

@@ -138,6 +138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let metadata =
                                 BlockMetadata::from(block.header.expect("should have blockheader"));
                             last_block_id = metadata.get_block();
+                            tracing::debug!("Block id: {}", last_block_id);
                             for event in block.events {
                                 let mut event =
                                     DomainEvent::from_starknet_event(event, &mut filters);

@@ -1,8 +1,8 @@
 use crate::{
     domain::crypto::U256,
     infrastructure::postgres::event_source::{
-        create_token_for_customer, update_project_project_value, update_token_owner,
-        update_token_slot, update_token_value,
+        create_token_for_customer, decrease_token_value, update_project_project_value,
+        update_token_owner, update_token_slot, update_token_value,
     },
 };
 use apibara_core::starknet::v1alpha2::FieldElement;
@@ -183,13 +183,9 @@ impl Consumer<Transaction<'_>> for ProjectTransferValueEventConsumer {
             U256::from(FieldElement::from_hex(event.payload.get("2").unwrap()).unwrap());
         let value = U256::from(FieldElement::from_hex(event.payload.get("4").unwrap()).unwrap());
 
-        // new token created from empty address
-        if U256::from(0u64) == from_token_id {
-            return Ok(update_token_value(txn, from_address, &to_token_id, &value).await?);
-        }
+        update_token_value(txn, from_address, &to_token_id, &value).await?;
 
-        // remove value from customer_token where project_address = from_address && token_id
-        // = old_token_id
+        decrease_token_value(txn, from_address, &from_token_id, &value).await?;
         Ok(())
     }
 }

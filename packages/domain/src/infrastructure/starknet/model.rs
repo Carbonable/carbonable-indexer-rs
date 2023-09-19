@@ -1,6 +1,7 @@
 use bigdecimal::{BigDecimal, ToPrimitive};
 use crypto_bigint::Encoding;
 use std::{collections::HashMap, sync::Arc};
+use tracing::error;
 
 use starknet::{
     core::{
@@ -102,12 +103,20 @@ pub(crate) async fn load_blockchain_data(
         let handle = tokio::spawn(async move {
             let contract_entrypoint = selector;
 
-            let res = provider
+            let res = match provider
                 .call(
                     get_call_function(&address, contract_entrypoint, vec![]),
                     &BlockId::Tag(BlockTag::Latest),
                 )
-                .await?;
+                .await
+            {
+                Ok(res) => Ok(res),
+                Err(e) => {
+                    error!("load_blockchain_data // endpoint {contract_entrypoint:#?}");
+                    Err(ModelError::ProviderError(e))
+                }
+            }?;
+
             Ok((selector.to_string(), StarknetValue::new(res)))
         });
 
@@ -143,7 +152,10 @@ pub async fn parallelize_blockchain_rpc_calls(
                 .await
             {
                 Ok(res) => Ok(res),
-                Err(err) => Err(ModelError::ProviderError(err)),
+                Err(err) => {
+                    error!("parallelize_blockchain_rpc_calls // endpoint {endpoint:#?}");
+                    Err(ModelError::ProviderError(err))
+                }
             }
         });
 

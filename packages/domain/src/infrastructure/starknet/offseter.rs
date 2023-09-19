@@ -43,7 +43,6 @@ impl StarknetModel<HashMap<String, StarknetValue>> for OffseterModel<Erc721> {
             self.provider.clone(),
             self.address,
             &[
-                "getImplementationHash",
                 "getCarbonableProjectAddress",
                 "getMinClaimable",
                 "getTotalClaimable",
@@ -58,18 +57,16 @@ impl StarknetModel<HashMap<String, StarknetValue>> for OffseterModel<Erc721> {
 #[async_trait::async_trait]
 impl StarknetModel<HashMap<String, StarknetValue>> for OffseterModel<Erc3525> {
     async fn load(&self) -> Result<HashMap<String, StarknetValue>, ModelError> {
-        info!("loading offseter with address {:#x}", self.address);
+        info!("loading 3525 offseter with address {:#x}", self.address);
         Ok(load_blockchain_data(
             self.provider.clone(),
             self.address,
             &[
-                "getImplementationHash",
-                "getCarbonableProjectAddress",
-                "getMinClaimable",
-                "getTotalClaimable",
-                "getTotalDeposited",
-                "getTotalClaimed",
-                "getCarbonableProjectSlot",
+                "get_carbonable_project_address",
+                "get_total_claimable",
+                "get_total_deposited",
+                "get_total_claimed",
+                "get_carbonable_project_slot",
             ],
         )
         .await?)

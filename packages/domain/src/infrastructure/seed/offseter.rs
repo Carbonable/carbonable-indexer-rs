@@ -44,11 +44,6 @@ impl Seeder for OffseterSeeder<Erc721> {
             OffseterModel::<Erc721>::new(FieldElement::from_hex_be(&address).unwrap())?;
         let mut data = offseter_model.load().await?;
 
-        let implementation_hash: String = data
-            .get_mut("getImplementationHash")
-            .expect("should have implementation hash")
-            .resolve("address")
-            .into();
         let project_address: String = data
             .get_mut("getCarbonableProjectAddress")
             .expect("should have carbonableProjectAddress")
@@ -59,7 +54,6 @@ impl Seeder for OffseterSeeder<Erc721> {
             db_models.implementation.clone(),
             offseter_model.provider,
             address.as_str(),
-            implementation_hash.as_str(),
         )
         .await?;
 
@@ -87,18 +81,13 @@ impl Seeder for OffseterSeeder<Erc3525> {
             OffseterModel::<Erc3525>::new(FieldElement::from_hex_be(&address).unwrap())?;
         let mut data = offseter_model.load().await?;
 
-        let implementation_hash: String = data
-            .get_mut("getImplementationHash")
-            .expect("should have implementation hash")
-            .resolve("address")
-            .into();
         let project_address: String = data
-            .get_mut("getCarbonableProjectAddress")
+            .get_mut("get_carbonable_project_address")
             .expect("should have carbonableProjectAddress")
             .resolve("address")
             .into();
         let slot: u64 = data
-            .get_mut("getCarbonableProjectSlot")
+            .get_mut("get_carbonable_project_slot")
             .expect("should have getCarbonableProjectSlot")
             .resolve("u64")
             .into();
@@ -107,7 +96,6 @@ impl Seeder for OffseterSeeder<Erc3525> {
             db_models.implementation.clone(),
             offseter_model.provider,
             address.as_str(),
-            implementation_hash.as_str(),
         )
         .await?;
         let project =

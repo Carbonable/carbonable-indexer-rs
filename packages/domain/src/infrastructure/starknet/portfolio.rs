@@ -8,8 +8,12 @@ use starknet::{
 
 use crate::{
     domain::{crypto::U256, Erc721, SlotValue},
-    infrastructure::view_model::portfolio::{
-        Erc3525Token, ProjectWithMinterAndPaymentViewModel, Token,
+    infrastructure::{
+        postgres::entity::ErcImplementation,
+        view_model::{
+            customer::CustomerToken,
+            portfolio::{Erc3525Token, ProjectWithMinterAndPaymentViewModel, Token},
+        },
     },
 };
 
@@ -66,12 +70,18 @@ async fn get_token_uri(
     provider: &JsonRpcClient<HttpTransport>,
     address: &str,
     token_id: &U256,
+    implementation: ErcImplementation,
 ) -> Result<String, ModelError> {
+    let entrypoint = match implementation {
+        ErcImplementation::Erc721 => "tokenURI",
+        ErcImplementation::Erc3525 => "token_uri",
+        ErcImplementation::Enum => panic!("this should be a valid erc implementation"),
+    };
     let response = provider
         .call(
             get_call_function(
                 &FieldElement::from_hex_be(address).unwrap(),
-                "tokenURI",
+                entrypoint,
                 vec![u256_to_felt(token_id), FieldElement::ZERO],
             ),
             &BlockId::Tag(BlockTag::Latest),
@@ -94,24 +104,6 @@ async fn get_token_uri(
     Ok(string)
 }
 
-pub(crate) async fn get_slot_of(
-    provider: &JsonRpcClient<HttpTransport>,
-    address: &str,
-    token_id: &U256,
-) -> Result<U256, ModelError> {
-    let response = provider
-        .call(
-            get_call_function(
-                &FieldElement::from_hex_be(address).unwrap(),
-                "slotOf",
-                vec![u256_to_felt(token_id), FieldElement::ZERO],
-            ),
-            &BlockId::Tag(BlockTag::Latest),
-        )
-        .await?;
-    Ok(felt_to_u256(response.first().unwrap().to_owned()))
-}
-
 pub(crate) async fn get_value_of_token_in_slot(
     provider: &JsonRpcClient<HttpTransport>,
     address: &str,
@@ -121,7 +113,7 @@ pub(crate) async fn get_value_of_token_in_slot(
         .call(
             get_call_function(
                 &FieldElement::from_hex_be(address).unwrap(),
-                "valueOf",
+                "value_of",
                 vec![u256_to_felt(token_id), FieldElement::ZERO],
             ),
             &BlockId::Tag(BlockTag::Latest),
@@ -140,7 +132,8 @@ pub async fn load_erc_721_portfolio(address: &str, wallet: &str) -> Result<Vec<T
         // tokenOfOwnerByIndex(owner, index) -> tokenId
         let token_id = get_token_id(&provider, address, wallet, &token_index).await?;
         // tokenURI
-        let token_uri = get_token_uri(&provider, address, &token_id).await?;
+        let token_uri =
+            get_token_uri(&provider, address, &token_id, ErcImplementation::Erc721).await?;
         let uri_model = UriModel::<Erc721>::new(token_uri)?;
         let metadata = uri_model.load().await?;
         tokens.push(Token {
@@ -157,24 +150,24 @@ pub async fn load_erc_721_portfolio(address: &str, wallet: &str) -> Result<Vec<T
 pub async fn load_erc_3525_portfolio(
     project: &ProjectWithMinterAndPaymentViewModel,
     address: &str,
-    wallet: &str,
-    slot: &U256,
+    customer_tokens: &[CustomerToken],
 ) -> Result<Vec<Option<Erc3525Token>>, ModelError> {
     let provider = get_starknet_rpc_from_env()?;
-    let balance = get_balance_of(&provider, address, wallet).await?;
     let mut tokens = vec![];
-    for token_index in 0..balance {
-        let token_id = get_token_id(&provider, address, wallet, &token_index).await?;
-        if get_slot_of(&provider, address, &token_id).await? != *slot {
-            continue;
-        }
-
-        let token_uri = get_token_uri(&provider, address, &token_id).await?;
-        let value: U256 = get_value_of_token_in_slot(&provider, address, &token_id).await?;
+    for token_index in customer_tokens {
+        let token_uri = get_token_uri(
+            &provider,
+            address,
+            &token_index.token_id,
+            ErcImplementation::Erc3525,
+        )
+        .await?;
+        let value: U256 =
+            get_value_of_token_in_slot(&provider, address, &token_index.token_id).await?;
         // let value: U256 = StarknetValue::new(data[1].clone()).resolve("u256").into();
 
         tokens.push(Some(Erc3525Token {
-            token_id,
+            token_id: token_index.token_id,
             name: project.name.to_string(),
             value,
             image: token_uri,

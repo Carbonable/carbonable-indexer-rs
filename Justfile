@@ -7,14 +7,15 @@ apibara_default_token := "change_me"
 
 testnet_config := "APIBARA_URI=https://goerli.starknet.a5a.ch NETWORK=goerli"
 mainnet_config := "APIBARA_URI=https://mainnet.starknet.a5a.ch NETWORK=mainnet"
-rpc_endpoint := "https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0"
+# rpc_endpoint := "https://DOMAIN.infura.io/v3/f46a67c22ae24d98a6dde83028e735c0"
+rpc_endpoint := "https://carbonable-testnet-node.fly.dev"
 
 default:
     just --list
 
 # run indexer against against blockchain as data source
 run_indexer env=default_env starting_block=default_starting_block force=default_force:
-	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN={{rpc_endpoint}} APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=info RUST_BACKTRACE=1 cargo run -p carbonable-indexer -- --starting-block {{starting_block}} --batch-size 10 --only-index {{force}}
+	{{ if env == "mainnet" { mainnet_config } else { testnet_config } }} DATABASE_URI=postgres://carbonable:carbonable@localhost:5432/carbonable_indexer GATEWAY=https://carbonable.infura-ipfs.io/ipfs/ SEQUENCER_DOMAIN={{rpc_endpoint}} APIBARA_TOKEN={{apibara_default_token}} RUST_LOG=debug RUST_BACKTRACE=1 cargo run -p carbonable-indexer -- --starting-block {{starting_block}} --batch-size 10 --only-index {{force}}
 
 # seed base data from data directory
 run_seeding env=default_env:
