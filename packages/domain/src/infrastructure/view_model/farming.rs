@@ -380,7 +380,6 @@ impl CustomerDetailsProjectData {
         value_of: &U256,
         customer_tokens: &mut [CustomerToken],
     ) -> &mut Self {
-        println!("\n\n\n{:#?}\n\n\n", data);
         let current_absorption: U256 = StarknetValue::new(data[0].clone()).resolve("u256").into();
         let offseter_deposited_of: U256 =
             StarknetValue::new(data[1].clone()).resolve("u256").into();

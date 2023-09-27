@@ -713,9 +713,9 @@ impl PostgresProject<Erc3525> {
                     .into(),
                 data.get_mut("slot")
                     .unwrap_or(&mut StarknetValue::from_resolved_value(
-                        crate::infrastructure::starknet::model::StarknetResolvedValue::U256(U256(
-                            crypto_bigint::U256::from_u8(0),
-                        )),
+                        crate::infrastructure::starknet::model::StarknetResolvedValue::U256(
+                            U256::zero(),
+                        ),
                     ))
                     .resolve("u256")
                     .into(),

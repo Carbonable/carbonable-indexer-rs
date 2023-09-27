@@ -10,6 +10,10 @@ use carbonable_domain::{
                 MinterAirdropEventConsumer, MinterBuyEventConsumer, MinterFilters,
                 MinterMigrationEventConsumer,
             },
+            offseter::{
+                OffsetFilters, OffseterClaimEventConsumer, OffseterDepositEventConsumer,
+                OffseterUpgradedEventConsumer, OffseterWithdrawEventConsumer,
+            },
             project::{
                 ProjectFilters, ProjectProjectValueUpdateEventConsumer,
                 ProjectSlotChangedEventConsumer, ProjectTransferEventConsumer,
@@ -75,9 +79,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if configuration.only_index {
-        let mut filters: [Box<dyn Filterable>; 3] = [
+        let mut filters: [Box<dyn Filterable>; 4] = [
             Box::new(ProjectFilters::new()),
             Box::new(YieldFilters::new()),
+            Box::new(OffsetFilters::new()),
             Box::new(MinterFilters::new()),
         ];
         let mut last_block_id = configuration.starting_block;
@@ -114,6 +119,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         event_bus.add_consumer(Box::new(YielderProvisionEventConsumer::new()));
         event_bus.add_consumer(Box::new(YielderSnapshotEventConsumer::new()));
         event_bus.add_consumer(Box::new(YielderWithdrawEventConsumer::new()));
+        // Offseter
+        event_bus.add_consumer(Box::new(OffseterUpgradedEventConsumer::new()));
+        event_bus.add_consumer(Box::new(OffseterDepositEventConsumer::new()));
+        event_bus.add_consumer(Box::new(OffseterClaimEventConsumer::new()));
+        event_bus.add_consumer(Box::new(OffseterWithdrawEventConsumer::new()));
         //Minter
         event_bus.add_consumer(Box::new(MinterMigrationEventConsumer::new()));
         event_bus.add_consumer(Box::new(MinterAirdropEventConsumer::new()));
