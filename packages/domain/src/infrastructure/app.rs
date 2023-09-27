@@ -13,7 +13,7 @@ pub struct Args {
     pub apibara_uri: String,
     #[arg(env = "APIBARA_TOKEN")]
     pub apibara_token: String,
-    #[arg(long, default_value_t = 1)]
+    #[arg(long, default_value_t = 1, env = "STARTING_BLOCK")]
     pub starting_block: u64,
     #[arg(long, default_value_t = 10)]
     pub batch_size: u64,

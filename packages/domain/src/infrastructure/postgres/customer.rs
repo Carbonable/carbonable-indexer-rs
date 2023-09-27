@@ -1,9 +1,6 @@
 use crate::{domain::crypto::U256, infrastructure::view_model::customer::CustomerToken};
 
-use super::{
-    entity::{CustomerTokenIden, ErcImplementation},
-    PostgresError,
-};
+use super::{entity::CustomerTokenIden, PostgresError};
 use deadpool_postgres::Pool;
 use sea_query::{Expr, Func, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;

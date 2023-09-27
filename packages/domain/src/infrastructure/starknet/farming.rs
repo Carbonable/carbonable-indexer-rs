@@ -6,7 +6,6 @@ use time::OffsetDateTime;
 
 use crate::infrastructure::{
     flatten,
-    postgres::entity::{Provision, Snapshot},
     view_model::{
         customer::CustomerToken,
         farming::{
@@ -30,9 +29,6 @@ use super::{
     },
     portfolio::get_value_of_token_in_slot,
 };
-
-// Bisextiles bitch
-const SECONDS_IN_YEAR: u64 = 31557600;
 
 /// Get cumulated value of tokens in slot for customer
 pub async fn get_value_of(
