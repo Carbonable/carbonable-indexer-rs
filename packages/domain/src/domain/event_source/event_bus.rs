@@ -2,7 +2,9 @@ use deadpool_postgres::{Pool, Transaction};
 use thiserror::Error;
 use tracing::{debug, error};
 
-use crate::infrastructure::postgres::event_source::insert_last_domain_event;
+use crate::infrastructure::postgres::event_source::{
+    event_was_processed, insert_last_domain_event,
+};
 
 use super::{transaction::TransactionManager, BlockMetadata, DomainError, DomainEvent, Event};
 use std::{fmt::Debug, sync::Arc};
@@ -58,22 +60,37 @@ impl EventBus<Pool, Box<dyn for<'a> Consumer<Transaction<'a>>>> {
     /// Create db.tx commit if success
     /// * `event` - [`DomainEvent`]
     /// * `event` - [`BlockMetadata`]
-    pub async fn dispatch(
+    pub async fn register(
         &self,
         event: &DomainEvent,
         metadata: &BlockMetadata,
     ) -> Result<(), DomainError> {
         let mut client = self.client_pool.clone().get().await?;
+        if event_was_processed(&client, event.id.as_str()).await {
+            return Ok(());
+        }
         let tx = client.transaction().await?;
+
         // Rollback transaction if storing domain event fails
         match insert_last_domain_event(&tx, event, metadata).await {
-            Ok(_) => &tx.commit().await?,
+            Ok(_) => match tx.commit().await {
+                Ok(_) => Ok(()),
+                Err(_) => Err(DomainError::FailedToPersistEvent),
+            },
             Err(err) => {
                 error!("event_store.committing.error: {:#?}", err);
-                &tx.rollback().await?
+                let _ = tx.rollback().await;
+                Err(DomainError::FailedToRollback)
             }
-        };
+        }
+    }
 
+    pub async fn consume_event_store(
+        &self,
+        event: &DomainEvent,
+        metadata: &BlockMetadata,
+    ) -> Result<(), DomainError> {
+        let mut client = self.client_pool.clone().get().await?;
         let mut tx = client.transaction().await?;
         for consumer in &self.consumers {
             if consumer.can_consume(&event.r#type) {

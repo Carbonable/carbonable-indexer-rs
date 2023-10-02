@@ -1,10 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
 use starknet::{
-    core::types::FieldElement,
-    providers::jsonrpc::{
-        models::{BlockId, BlockTag},
-        HttpTransport, JsonRpcClient,
+    core::types::{CallFunction, FieldElement},
+    macros::felt,
+    providers::{
+        jsonrpc::{
+            models::{BlockId, BlockTag},
+            HttpTransport, JsonRpcClient,
+        },
+        Provider,
     },
 };
 use tracing::info;
@@ -18,10 +22,10 @@ use crate::{
 };
 
 use super::{
-    get_starknet_rpc_from_env,
+    get_starknet_provider_from_env, get_starknet_rpc_from_env,
     model::{
-        felt_to_u256, get_call_function, load_blockchain_data, ModelError, StarknetModel,
-        StarknetValue,
+        felt_to_u256, get_call_function, load_blockchain_data, u256_to_felt, ModelError,
+        StarknetModel, StarknetValue,
     },
     uri::UriModel,
 };
@@ -161,7 +165,6 @@ impl StarknetModel<Vec<HashMap<String, StarknetValue>>> for ProjectModel<Erc3525
                 .into();
             let uri_model = UriModel::<Erc3525>::new(slot_uri)?;
             let metadata = uri_model.load().await?;
-            info!("METADATA: {metadata:#?}");
             slot_data.insert(
                 "name".to_string(),
                 StarknetValue::from_resolved_value(StarknetResolvedValue::String(metadata.name)),
@@ -196,4 +199,40 @@ pub(crate) fn get_slug_from_uri(external_url: &str) -> String {
         .last()
         .expect("failed to parse metadata external_url")
         .to_string()
+}
+
+pub async fn get_slot_uri_from_feeder(
+    contract_address: FieldElement,
+    slot: &U256,
+) -> Result<String, ModelError> {
+    let provider = get_starknet_provider_from_env()?;
+    let res = provider
+        .call_contract(
+            CallFunction {
+                contract_address,
+                // this nasty thing means "slot_uri"
+                entry_point_selector: felt!(
+                    "0x1c8f7a21376b9ee15c70522ae16609dd1ee6545abfbbf2092e3acef630741a3"
+                ),
+                calldata: vec![u256_to_felt(slot), FieldElement::ZERO],
+            },
+            starknet::core::types::BlockId::Latest,
+        )
+        .await?;
+
+    let slot_uri_string: String = res
+        .result
+        .iter()
+        .skip(1)
+        .map(|fe| {
+            fe.to_bytes_be()
+                .to_vec()
+                .iter()
+                .filter(|b| 0 != **b)
+                .copied()
+                .collect()
+        })
+        .map(|bytes| unsafe { String::from_utf8_unchecked(bytes) })
+        .collect();
+    Ok(slot_uri_string)
 }

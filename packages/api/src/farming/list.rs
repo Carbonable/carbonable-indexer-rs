@@ -22,6 +22,12 @@ async fn aggregate_metadata(
 ) -> Result<Vec<FarmingProjectsViewModel>, ApiError> {
     let client = Client::new();
     for p in projects.iter_mut() {
+        if p.uri.uri.starts_with("data:application/json") {
+            let metadata =
+                serde_json::from_str(p.uri.uri.replace("data:application/json,", "").as_str())?;
+            p.uri.data = metadata;
+            continue;
+        }
         let data = client
             .get(format!("{}/token", p.uri.uri))
             .send()

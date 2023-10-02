@@ -1,5 +1,7 @@
-use carbonable_domain::infrastructure::postgres::entity::{ActionType, CustomerFarmIden, FarmType};
-use sea_orm_migration::prelude::*;
+use carbonable_domain::infrastructure::postgres::entity::{
+    ActionType, CustomerFarmIden, FarmType, LastStoredEventIden,
+};
+use sea_orm_migration::{prelude::*, sea_orm::ConnectionTrait};
 use sea_query::extension::postgres::Type;
 
 #[derive(DeriveMigrationName)]
@@ -8,6 +10,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let db = manager.get_connection();
         manager
             .create_type(
                 Type::create()
@@ -27,10 +30,27 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
+                    .table(LastStoredEventIden::Table)
+                    .col(
+                        ColumnDef::new(LastStoredEventIden::Id)
+                            .string()
+                            .string_len(26)
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+        db.execute_unprepared("INSERT INTO last_stored_event (id) VALUES ('')")
+            .await?;
+        manager
+            .create_table(
+                Table::create()
                     .table(CustomerFarmIden::Table)
                     .col(
                         ColumnDef::new(CustomerFarmIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
@@ -80,6 +100,9 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .drop_table(Table::drop().table(CustomerFarmIden::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(LastStoredEventIden::Table).to_owned())
             .await?;
         manager
             .drop_type(Type::drop().if_exists().name(ActionType::Enum).to_owned())

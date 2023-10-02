@@ -19,17 +19,22 @@ async fn aggregate_metadata(mut project: ProjectViewModel) -> Result<ProjectView
         ProjectViewModel::Erc721(p) => &p.uri.uri,
         ProjectViewModel::Erc3525(p) => &p.uri.uri,
     };
-    let data = client
-        .get(format!("{uri}/token"))
-        .send()
-        .await?
-        .json()
-        .await
-        .expect("failed to parse json");
+
+    let data: serde_json::Value = if uri.starts_with("data:application/json") {
+        serde_json::from_str(uri.replace("data:application/json,", "").as_str())?
+    } else {
+        client
+            .get(format!("{}/token", uri))
+            .send()
+            .await?
+            .json()
+            .await
+            .expect("failed to parse json")
+    };
 
     match &mut project {
-        ProjectViewModel::Erc721(p) => p.uri.data = data,
-        ProjectViewModel::Erc3525(p) => p.uri.data = data,
+        ProjectViewModel::Erc721(p) => p.uri.data = data.into(),
+        ProjectViewModel::Erc3525(p) => p.uri.data = data.into(),
     }
 
     Ok(project)

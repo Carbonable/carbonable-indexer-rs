@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
+use crate::domain::Ulid;
 use deadpool_postgres::Pool;
-use sea_query::{Alias, Expr, JoinType, PostgresQueryBuilder, Query};
+use sea_query::{Alias, Expr, Func, JoinType, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use tracing::error;
-use uuid::Uuid;
 
 use crate::infrastructure::{
     postgres::entity::CustomerFarmIden,
@@ -23,7 +23,7 @@ use super::{
 };
 use crate::domain::crypto::U256;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PostgresFarming {
     pub db_client_pool: Arc<Pool>,
 }
@@ -259,7 +259,7 @@ impl PostgresFarming {
         }
     }
 
-    pub async fn get_snapshots(&self, yielder: Uuid) -> Result<Vec<Snapshot>, PostgresError> {
+    pub async fn get_snapshots(&self, yielder: Ulid) -> Result<Vec<Snapshot>, PostgresError> {
         let client = self.db_client_pool.clone().get().await?;
         let (sql, values) = Query::select()
             .from(SnapshotIden::Table)
@@ -289,7 +289,7 @@ impl PostgresFarming {
         }
     }
 
-    pub async fn get_provisions(&self, yielder: Uuid) -> Result<Vec<Provision>, PostgresError> {
+    pub async fn get_provisions(&self, yielder: Ulid) -> Result<Vec<Provision>, PostgresError> {
         let client = self.db_client_pool.clone().get().await?;
         let (sql, values) = Query::select()
             .from(ProvisionIden::Table)
@@ -312,7 +312,7 @@ impl PostgresFarming {
 
     pub async fn get_project_value_times_unit_price(
         &self,
-        project_id: Uuid,
+        project_id: Ulid,
     ) -> Result<U256, PostgresError> {
         let client = self.db_client_pool.clone().get().await?;
 
@@ -389,7 +389,7 @@ impl PostgresFarming {
                     .from(CustomerFarmIden::Table)
                     .and_where(
                         Expr::col((CustomerFarmIden::Table, CustomerFarmIden::CustomerAddress))
-                            .eq(customer_address),
+                            .eq(Func::lower(customer_address)),
                     )
                     .and_where(
                         Expr::col((CustomerFarmIden::Table, CustomerFarmIden::ProjectAddress))
@@ -414,10 +414,7 @@ impl PostgresFarming {
                     }
                 }
             }
-            Err(e) => {
-                error!("get_customer_farm -> {:#?}", e);
-                Err(PostgresError::TokioPostgresError(e))
-            }
+            Err(_) => Ok(CustomerFarm::default()),
         }
     }
 }

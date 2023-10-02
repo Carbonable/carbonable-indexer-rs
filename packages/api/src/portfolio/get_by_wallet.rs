@@ -1,3 +1,4 @@
+use reqwest::Client;
 use serde::Serialize;
 
 use actix_web::{web, HttpResponse, Responder};
@@ -6,11 +7,11 @@ use carbonable_domain::{
     infrastructure::{
         flatten,
         postgres::{
-            customer::PostgresCustomer, entity::ErcImplementation, project::PostgresProject,
+            customer::PostgresCustomer, entity::ErcImplementation, farming::PostgresFarming,
+            project::PostgresProject,
         },
         starknet::{
-            ensure_starknet_wallet, get_starknet_rpc_from_env,
-            model::{parallelize_blockchain_rpc_calls, StarknetValue, StarknetValueResolver},
+            ensure_starknet_wallet,
             portfolio::{load_erc_3525_portfolio, load_erc_721_portfolio},
         },
         view_model::{
@@ -19,7 +20,6 @@ use carbonable_domain::{
         },
     },
 };
-use starknet::core::types::FieldElement;
 use std::sync::Arc;
 
 use crate::{
@@ -27,11 +27,31 @@ use crate::{
     AppDependencies,
 };
 
+async fn aggregate_image_from_slot_uri(slot_uri: &str) -> String {
+    let client = Client::new();
+    if slot_uri.starts_with("data:application/json") {
+        let metadata: serde_json::Value =
+            serde_json::from_str(slot_uri.replace("data:application/json,", "").as_str())
+                .expect("failed to parse json");
+        return metadata["image"].to_string();
+    }
+    let uri = slot_uri.replace("\"", "");
+    let data: serde_json::Value = client
+        .get(uri)
+        .send()
+        .await
+        .expect("failed to query slot_uri")
+        .json()
+        .await
+        .expect("failed to parse json");
+    return data["image"].to_string();
+}
+
 async fn aggregate_721_tokens(
     project: ProjectWithMinterAndPaymentViewModel,
     wallet: String,
 ) -> Result<Option<ProjectWithTokens>, ProjectError> {
-    let tokens = load_erc_721_portfolio(&project.address, &wallet).await?;
+    let tokens = load_erc_721_portfolio(&project, &wallet).await?;
     if tokens.is_empty() {
         return Ok(None);
     }
@@ -40,6 +60,11 @@ async fn aggregate_721_tokens(
         project.payment_decimals,
         U256::from(tokens.len()),
     );
+
+    let image = match &project.slot_uri {
+        Some(uri) => aggregate_image_from_slot_uri(&uri.as_str()).await,
+        None => "<deprecated>".to_owned(),
+    };
 
     let project = ProjectWithTokens::Erc721 {
         id: project.id,
@@ -52,44 +77,39 @@ async fn aggregate_721_tokens(
             project: project.abi,
             minter: project.minter_abi,
         },
+        image,
     };
 
     Ok(Some(project))
 }
 async fn aggregate_3525_tokens(
+    farming_model: Arc<PostgresFarming>,
     project: ProjectWithMinterAndPaymentViewModel,
     wallet: String,
     customer_tokens: Vec<CustomerToken>,
 ) -> Result<Option<ProjectWithTokens>, ProjectError> {
     let tokens =
         load_erc_3525_portfolio(&project, &project.address, &customer_tokens.as_slice()).await?;
-    if tokens.is_empty() {
-        return Ok(None);
-    }
 
-    let provider = Arc::new(get_starknet_rpc_from_env()?);
-    let values = [
-        (
-            project.yielder_address.to_string(),
-            "get_deposited_of",
-            vec![FieldElement::from_hex_be(&wallet).unwrap()],
-        ),
-        (
-            project.offseter_address.to_string(),
-            "get_deposited_of",
-            vec![FieldElement::from_hex_be(&wallet).unwrap()],
-        ),
-    ];
-
-    let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
-    let total_offseted: U256 = StarknetValue::new(data[0].clone()).resolve("u256").into();
-    let total_yielded: U256 = StarknetValue::new(data[1].clone()).resolve("u256").into();
+    let customer_farm = farming_model
+        .get_customer_farm(
+            &wallet,
+            &project.address,
+            &project.slot.expect("slot is required here"),
+        )
+        .await?;
+    let total_offseted: U256 = customer_farm.offseter_deposited.inner();
+    let total_yielded: U256 = customer_farm.yielder_deposited.inner();
 
     let value = tokens
         .iter()
         .flatten()
         .fold(U256::zero(), |acc, e| acc + e.value);
     let total_amount = total_amount(project.unit_price, project.payment_decimals, value);
+    let image = match &project.slot_uri {
+        Some(uri) => aggregate_image_from_slot_uri(&uri.as_str()).await,
+        None => "<deprecated>".to_owned(),
+    };
 
     let project = ProjectWithTokens::Erc3525 {
         id: project.id,
@@ -107,6 +127,7 @@ async fn aggregate_3525_tokens(
             project: project.abi,
             minter: project.minter_abi,
         },
+        image,
     };
 
     Ok(Some(project))
@@ -118,6 +139,7 @@ fn total_amount(unit_price: U256, _payment_decimals: U256, amount: U256) -> U256
 }
 
 async fn aggregate_tokens_with_project(
+    farming_model: Arc<PostgresFarming>,
     projects_data: Vec<ProjectWithMinterAndPaymentViewModel>,
     wallet: String,
     customer_tokens: Vec<CustomerToken>,
@@ -126,6 +148,7 @@ async fn aggregate_tokens_with_project(
     for project in projects_data.into_iter() {
         let wallet_address = wallet.clone();
         let tokens = customer_tokens.clone();
+        let model = farming_model.clone();
         let handle = match &project.erc_implementation {
             ErcImplementation::Enum => {
                 return Err(ApiError::ProjectError(
@@ -136,7 +159,7 @@ async fn aggregate_tokens_with_project(
                 tokio::spawn(async move { aggregate_721_tokens(project, wallet_address).await })
             }
             ErcImplementation::Erc3525 => tokio::spawn(async move {
-                aggregate_3525_tokens(project, wallet_address, tokens.to_vec()).await
+                aggregate_3525_tokens(model, project, wallet_address, tokens.to_vec()).await
             }),
         };
         handles.push(flatten(handle));
@@ -147,7 +170,6 @@ async fn aggregate_tokens_with_project(
         Err(e) => Err(ApiError::ProjectError(e)),
     }
 }
-
 #[derive(Serialize)]
 pub struct Global {
     total: bigdecimal::BigDecimal,
@@ -168,6 +190,7 @@ pub async fn get_by_wallet(
 
     let project_model: PostgresProject<Erc721> = PostgresProject::new(data.db_client_pool.clone());
     let customer_token_model = PostgresCustomer::new(data.db_client_pool.clone());
+    let farming_model = Arc::new(PostgresFarming::new(data.db_client_pool.clone()));
 
     let customer_tokens = customer_token_model
         .get_customer_erc3525_tokens(&wallet)
@@ -176,7 +199,13 @@ pub async fn get_by_wallet(
     let projects_data = project_model
         .find_projects_with_minter_and_payment()
         .await?;
-    let projects = aggregate_tokens_with_project(projects_data, wallet, customer_tokens).await?;
+    let projects = aggregate_tokens_with_project(
+        farming_model.clone(),
+        projects_data,
+        wallet,
+        customer_tokens,
+    )
+    .await?;
     let filtered_projects: Vec<ProjectWithTokens> = projects
         .into_iter()
         .filter(|p| p.is_some())

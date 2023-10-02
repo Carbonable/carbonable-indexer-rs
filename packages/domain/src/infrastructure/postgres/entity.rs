@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
+use crate::domain::Ulid;
 use bigdecimal::BigDecimal;
 use postgres_types::{accepts, to_sql_checked, FromSql, ToSql};
 use sea_query::{enum_def, Iden};
 use time::{macros::offset, OffsetDateTime, PrimitiveDateTime};
-use uuid::Uuid;
 
 use crate::domain::{crypto::U256, event_source::Event};
 
@@ -195,7 +195,7 @@ impl From<Event> for sea_query::Value {
 // Not domain business entities
 #[enum_def]
 pub struct Project {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub slug: String,
     pub name: String,
@@ -210,9 +210,10 @@ pub struct Project {
     pub value_decimals: U256,
     pub forecasted_apr: Option<String>,
     pub erc_implementation: ErcImplementation,
-    pub implementation_id: Option<Uuid>,
-    pub uri_id: Option<Uuid>,
+    pub implementation_id: Option<Ulid>,
+    pub uri_id: Option<Ulid>,
     pub project_value: Option<U256>,
+    pub slot_uri: Option<String>,
 }
 
 impl From<tokio_postgres::Row> for Project {
@@ -236,13 +237,14 @@ impl From<tokio_postgres::Row> for Project {
             implementation_id: None,
             uri_id: None,
             project_value: value.get(14),
+            slot_uri: value.get(15),
         }
     }
 }
 
 #[enum_def]
 pub struct Implementation {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub abi: serde_json::Value,
 }
@@ -259,7 +261,7 @@ impl From<tokio_postgres::Row> for Implementation {
 
 #[enum_def]
 pub struct Uri {
-    pub id: Uuid,
+    pub id: Ulid,
     pub uri: String,
     pub address: String,
     pub data: serde_json::Value,
@@ -278,12 +280,12 @@ impl From<tokio_postgres::Row> for Uri {
 
 #[enum_def]
 pub struct Payment {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub name: String,
     pub symbol: String,
     pub decimals: U256,
-    pub implementation_id: Option<Uuid>,
+    pub implementation_id: Option<Ulid>,
 }
 
 impl From<tokio_postgres::Row> for Payment {
@@ -301,7 +303,7 @@ impl From<tokio_postgres::Row> for Payment {
 
 #[enum_def]
 pub struct Minter {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub max_supply: Option<U256>,
     // Can be reserved value in case of an erc3525
@@ -317,28 +319,28 @@ pub struct Minter {
     pub total_value: Option<U256>,
     pub whitelist: Option<serde_json::Value>,
     pub erc_implementation: ErcImplementation,
-    pub project_id: Option<Uuid>,
-    pub payment_id: Option<Uuid>,
-    pub implementation_id: Option<Uuid>,
+    pub project_id: Option<Ulid>,
+    pub payment_id: Option<Ulid>,
+    pub implementation_id: Option<Ulid>,
     pub sale_date: Option<PrimitiveDateTime>,
 }
 
 #[enum_def]
 pub struct Offseter {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub total_deposited: U256,
     pub total_claimed: U256,
     pub total_claimable: U256,
     pub min_claimable: U256,
-    pub project_id: Option<Uuid>,
-    pub implementation_id: Option<Uuid>,
+    pub project_id: Option<Ulid>,
+    pub implementation_id: Option<Ulid>,
 }
 
 #[enum_def]
 #[derive(Debug)]
 pub struct Snapshot {
-    pub id: Uuid,
+    pub id: Ulid,
     pub previous_time: OffsetDateTime,
     pub previous_project_absorption: U256,
     pub previous_offseter_absorption: U256,
@@ -350,7 +352,7 @@ pub struct Snapshot {
     pub offseter_absorption: U256,
     pub yielder_absorption: U256,
     pub time: OffsetDateTime,
-    pub yielder_id: Option<Uuid>,
+    pub yielder_id: Option<Ulid>,
 }
 impl From<tokio_postgres::Row> for Snapshot {
     fn from(value: tokio_postgres::Row) -> Self {
@@ -376,22 +378,22 @@ impl From<tokio_postgres::Row> for Snapshot {
 
 #[enum_def]
 pub struct Yielder {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub total_deposited: U256,
     pub total_absorption: U256,
     pub snapshot_time: Option<PrimitiveDateTime>,
-    pub project_id: Option<Uuid>,
-    pub implementation_id: Option<Uuid>,
+    pub project_id: Option<Ulid>,
+    pub implementation_id: Option<Ulid>,
 }
 
 #[enum_def]
 #[derive(Debug)]
 pub struct Provision {
-    pub id: Uuid,
+    pub id: Ulid,
     pub amount: U256,
     pub time: OffsetDateTime,
-    pub yielder_id: Option<Uuid>,
+    pub yielder_id: Option<Ulid>,
 }
 
 impl From<tokio_postgres::Row> for Provision {
@@ -409,63 +411,63 @@ impl From<tokio_postgres::Row> for Provision {
 
 #[enum_def]
 pub struct Transfer {
-    pub id: Uuid,
+    pub id: Ulid,
     pub hash: String,
     pub from: String,
     pub to: String,
     pub token_id: U256,
     pub time: PrimitiveDateTime,
     pub block_id: U256,
-    pub project_id: Option<Uuid>,
+    pub project_id: Option<Ulid>,
 }
 
 #[enum_def]
 pub struct Airdrop {
-    pub id: Uuid,
+    pub id: Ulid,
     pub hash: String,
     pub address: String,
     pub quantity: U256,
     pub time: PrimitiveDateTime,
     pub block_id: U256,
-    pub minter_id: Option<Uuid>,
+    pub minter_id: Option<Ulid>,
 }
 
 #[enum_def]
 pub struct Buy {
-    pub id: Uuid,
+    pub id: Ulid,
     pub hash: String,
     pub address: String,
     pub quantity: U256,
     pub time: PrimitiveDateTime,
     pub block_id: U256,
-    pub minter_id: Option<Uuid>,
+    pub minter_id: Option<Ulid>,
 }
 
 #[enum_def]
 pub struct TransferSingle {
-    pub id: Uuid,
+    pub id: Ulid,
     pub hash: String,
     pub from: String,
     pub to: String,
     pub token_id: U256,
     pub time: PrimitiveDateTime,
     pub block_id: U256,
-    pub badge_id: Option<Uuid>,
+    pub badge_id: Option<Ulid>,
 }
 
 #[enum_def]
 pub struct Badge {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub name: String,
     pub owner: String,
-    pub implementation_id: Option<Uuid>,
-    pub uri_id: Option<Uuid>,
+    pub implementation_id: Option<Ulid>,
+    pub uri_id: Option<Ulid>,
 }
 
 #[enum_def]
 pub struct CustomerToken {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub project_address: String,
     pub slot: Option<U256>,
@@ -480,7 +482,7 @@ pub struct CustomerToken {
 
 #[enum_def]
 pub struct EventStore {
-    pub id: Uuid,
+    pub id: Ulid,
     pub event_id: String,
     pub block_number: U256,
     pub block_hash: String,
@@ -492,7 +494,7 @@ pub struct EventStore {
 
 #[enum_def]
 pub struct CustomerFarm {
-    pub id: Uuid,
+    pub id: Ulid,
     pub customer_address: String,
     pub project_address: String,
     pub slot: U256,
@@ -501,4 +503,8 @@ pub struct CustomerFarm {
     pub action_type: ActionType,
     pub event_id: String,
     pub event_timestamp: PrimitiveDateTime,
+}
+#[enum_def]
+pub struct LastStoredEvent {
+    pub id: Ulid,
 }

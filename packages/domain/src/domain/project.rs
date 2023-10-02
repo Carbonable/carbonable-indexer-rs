@@ -1,7 +1,10 @@
 use thiserror::Error;
 use tokio::task::JoinError;
 
-use crate::infrastructure::starknet::{model::ModelError, SequencerError};
+use crate::infrastructure::{
+    postgres::PostgresError,
+    starknet::{model::ModelError, SequencerError},
+};
 
 #[derive(Debug, Error)]
 pub enum ProjectError {
@@ -13,6 +16,8 @@ pub enum ProjectError {
     ModelError(#[from] ModelError),
     #[error(transparent)]
     SequencerError(#[from] SequencerError),
+    #[error(transparent)]
+    PostgresError(#[from] PostgresError),
 }
 
 pub fn format_ton<T>(value: T, ton_equivalent: T) -> T

@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use deadpool_postgres::Pool;
 use tokio_postgres::error::SqlState;
 
+use crate::domain::Ulid;
 use crate::{
     domain::{Contract, Erc3525, Erc721},
     infrastructure::{
@@ -17,7 +18,6 @@ use crate::{
 use sea_query::{Alias, Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use tracing::error;
-use uuid::Uuid;
 
 use crate::domain::crypto::U256;
 use crate::infrastructure::starknet::model::StarknetValue;
@@ -69,6 +69,7 @@ impl PostgresProject<Erc721> {
                 ProjectIden::ValueDecimals,
                 ProjectIden::ErcImplementation,
                 ProjectIden::ProjectValue,
+                ProjectIden::SlotUri,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
             .build_postgres(PostgresQueryBuilder);
@@ -185,6 +186,7 @@ impl PostgresProject<Erc721> {
             .column((Alias::new("minter_implementation"), ImplementationIden::Abi))
             .column((YielderIden::Table, YielderIden::Address))
             .column((OffseterIden::Table, OffseterIden::Address))
+            .column((ProjectIden::Table, ProjectIden::SlotUri))
             .from(ProjectIden::Table)
             .left_join(
                 MinterIden::Table,
@@ -234,8 +236,8 @@ impl PostgresProject<Erc721> {
         &self,
         mut data: HashMap<String, StarknetValue>,
         erc_implementation: ErcImplementation,
-        implementation_id: Option<Uuid>,
-        uri_id: Option<Uuid>,
+        implementation_id: Option<Ulid>,
+        uri_id: Option<Ulid>,
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
         let total_supply_key = match data.get("totalSupply") {
@@ -272,7 +274,7 @@ impl PostgresProject<Erc721> {
                 ProjectIden::ProjectValue,
             ])
             .values([
-                Uuid::new_v4().into(),
+                Ulid::new().into(),
                 data.get_mut("slug")
                     .expect("slug should be provided")
                     .resolve("string")
@@ -495,6 +497,7 @@ impl PostgresProject<Erc3525> {
                 ProjectIden::ValueDecimals,
                 ProjectIden::ErcImplementation,
                 ProjectIden::ProjectValue,
+                ProjectIden::SlotUri,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
             .build_postgres(PostgresQueryBuilder);
@@ -569,6 +572,7 @@ impl PostgresProject<Erc3525> {
                 ProjectIden::ValueDecimals,
                 ProjectIden::ErcImplementation,
                 ProjectIden::ProjectValue,
+                ProjectIden::SlotUri,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
             .and_where(Expr::col(ProjectIden::Slot).eq(U256::from(*slot)))
@@ -660,8 +664,9 @@ impl PostgresProject<Erc3525> {
         &self,
         mut data: HashMap<String, StarknetValue>,
         erc_implementation: ErcImplementation,
-        implementation_id: Option<Uuid>,
-        uri_id: Option<Uuid>,
+        implementation_id: Option<Ulid>,
+        uri_id: Option<Ulid>,
+        slot_uri: Option<String>,
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
         let total_supply_key = match data.get("totalSupply") {
@@ -696,9 +701,10 @@ impl PostgresProject<Erc3525> {
                 ProjectIden::ImplementationId,
                 ProjectIden::UriId,
                 ProjectIden::ProjectValue,
+                ProjectIden::SlotUri,
             ])
             .values([
-                Uuid::new_v4().into(),
+                Ulid::new().into(),
                 data.get_mut("slug")
                     .expect("slug should be provided")
                     .resolve("string")
@@ -752,6 +758,7 @@ impl PostgresProject<Erc3525> {
                 implementation_id.into(),
                 uri_id.into(),
                 project_value,
+                slot_uri.into(),
             ])?
             .build_postgres(PostgresQueryBuilder);
 

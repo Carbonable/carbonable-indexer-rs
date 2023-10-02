@@ -59,6 +59,7 @@ impl From<String> for StarknetEnv {
 /// * wallet_address - [`&mut String`] The wallet address.
 ///
 pub fn ensure_starknet_wallet(wallet_address: &mut String) {
+    *wallet_address = wallet_address.to_lowercase();
     if 66 != wallet_address.len() {
         *wallet_address = format!("0x{:0>64}", &wallet_address[2..]);
     }

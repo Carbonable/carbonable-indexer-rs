@@ -14,7 +14,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(EventStoreIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )

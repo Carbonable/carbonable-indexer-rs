@@ -1,5 +1,5 @@
+use crate::domain::Ulid;
 use serde::Serialize;
-use uuid::Uuid;
 
 use crate::domain::crypto::U256;
 use crate::domain::HumanComprehensibleU256;
@@ -7,23 +7,24 @@ use crate::infrastructure::postgres::entity::ErcImplementation;
 
 #[derive(Debug)]
 pub struct ProjectWithMinterAndPaymentViewModel {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub name: String,
     pub slug: String,
     pub slot: Option<U256>,
     pub erc_implementation: ErcImplementation,
     pub value_decimals: U256,
-    pub minter_id: Uuid,
+    pub minter_id: Ulid,
     pub unit_price: U256,
     pub symbol: String,
     pub minter_address: String,
-    pub payment_id: Uuid,
+    pub payment_id: Ulid,
     pub payment_decimals: U256,
     pub abi: serde_json::Value,
     pub minter_abi: serde_json::Value,
     pub yielder_address: String,
     pub offseter_address: String,
+    pub slot_uri: Option<String>,
 }
 
 impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
@@ -47,6 +48,7 @@ impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
             minter_abi: value.get(14),
             yielder_address: value.get(15),
             offseter_address: value.get(16),
+            slot_uri: value.get(17),
         }
     }
 }
@@ -54,7 +56,6 @@ impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
 #[derive(Debug, Serialize)]
 pub struct Token {
     pub token_id: U256,
-    pub image: String,
     pub name: String,
 }
 
@@ -64,7 +65,6 @@ pub struct Erc3525Token {
     #[serde(skip_serializing)]
     pub value: U256,
     pub name: String,
-    pub image: String,
     #[serde(rename = "value")]
     pub slot_value: HumanComprehensibleU256<U256>,
 }
@@ -79,7 +79,7 @@ pub struct PortfolioAbi {
 #[serde(untagged)]
 pub enum ProjectWithTokens {
     Erc721 {
-        id: Uuid,
+        id: Ulid,
         name: String,
         address: String,
         minter_address: String,
@@ -87,9 +87,10 @@ pub enum ProjectWithTokens {
         #[serde(skip_serializing)]
         total_amount: U256,
         abi: PortfolioAbi,
+        image: String,
     },
     Erc3525 {
-        id: Uuid,
+        id: Ulid,
         name: String,
         address: String,
         minter_address: String,
@@ -98,6 +99,7 @@ pub enum ProjectWithTokens {
         total_amount: U256,
         total_deposited_value: HumanComprehensibleU256<U256>,
         abi: PortfolioAbi,
+        image: String,
     },
 }
 

@@ -1,5 +1,9 @@
+use std::fmt::Display;
+
 use self::crypto::U256;
-use serde::Serialize;
+use postgres_types::FromSql;
+use sea_query::Nullable;
+use serde::{Deserialize, Serialize};
 
 pub mod crypto;
 pub mod event_source;
@@ -14,6 +18,63 @@ impl Contract for Erc721 {}
 /// Structure representing an ERC-3525 smart contract
 pub struct Erc3525;
 impl Contract for Erc3525 {}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Ulid(ulid::Ulid);
+impl Ulid {
+    pub fn new() -> Self {
+        Self(ulid::Ulid::new())
+    }
+}
+
+impl From<ulid::Ulid> for Ulid {
+    fn from(value: ulid::Ulid) -> Self {
+        Self(value)
+    }
+}
+impl From<Ulid> for ulid::Ulid {
+    fn from(value: Ulid) -> Self {
+        value.0
+    }
+}
+impl From<Ulid> for sea_query::Value {
+    fn from(value: Ulid) -> Self {
+        sea_query::Value::String(Some(Box::new(value.0.to_string())))
+    }
+}
+impl Nullable for Ulid {
+    fn null() -> sea_query::Value {
+        sea_query::Value::String(None)
+    }
+}
+impl Display for Ulid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.to_string())
+    }
+}
+impl From<String> for Ulid {
+    fn from(value: String) -> Self {
+        Self(ulid::Ulid::from_string(value.as_str()).expect("string is not a valid ulid"))
+    }
+}
+impl From<&str> for Ulid {
+    fn from(value: &str) -> Self {
+        Self(ulid::Ulid::from_string(value).expect("string is not a valid ulid"))
+    }
+}
+impl<'a> FromSql<'a> for Ulid {
+    fn from_sql(
+        _ty: &postgres_types::Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let str = std::str::from_utf8(raw)?;
+        Ok(Ulid(ulid::Ulid::from_string(str)?))
+    }
+
+    fn accepts(ty: &postgres_types::Type) -> bool {
+        ty == &postgres_types::Type::VARCHAR
+    }
+}
 
 /// Represents a project slot value
 #[derive(Debug, Default, Serialize, Copy, Clone)]

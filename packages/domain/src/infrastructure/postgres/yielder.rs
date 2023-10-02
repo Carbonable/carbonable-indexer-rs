@@ -1,9 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
+use crate::domain::Ulid;
 use deadpool_postgres::Pool;
 use sea_query::{PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
-use uuid::Uuid;
 
 use crate::{
     domain::{Contract, Erc3525, Erc721},
@@ -35,11 +35,11 @@ impl PostgresYielder<Erc721> {
         &self,
         address: &str,
         mut data: HashMap<String, StarknetValue>,
-        project_id: Option<Uuid>,
-        implementation_id: Option<Uuid>,
+        project_id: Option<Ulid>,
+        implementation_id: Option<Ulid>,
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
-        let id = uuid::Uuid::new_v4();
+        let id = Ulid::new();
         let (sql, values) = Query::insert()
             .into_table(YielderIden::Table)
             .columns([
@@ -81,11 +81,11 @@ impl PostgresYielder<Erc3525> {
         &self,
         address: &str,
         mut data: HashMap<String, StarknetValue>,
-        project_id: Option<Uuid>,
-        implementation_id: Option<Uuid>,
+        project_id: Option<Ulid>,
+        implementation_id: Option<Ulid>,
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
-        let id = uuid::Uuid::new_v4();
+        let id = Ulid::new();
         let (sql, values) = Query::insert()
             .into_table(YielderIden::Table)
             .columns([

@@ -1,10 +1,10 @@
+use crate::domain::Ulid;
 use deadpool_postgres::Pool;
 use sea_query::{PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use std::{collections::HashMap, sync::Arc};
 use tokio_postgres::error::SqlState;
 use tracing::error;
-use uuid::Uuid;
 
 use crate::infrastructure::starknet::model::{StarknetValue, StarknetValueResolver};
 
@@ -24,11 +24,11 @@ impl PostgresBadge {
         &self,
         address: &str,
         mut data: HashMap<String, StarknetValue>,
-        implementation_id: Option<Uuid>,
-        uri_id: Option<Uuid>,
+        implementation_id: Option<Ulid>,
+        uri_id: Option<Ulid>,
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
-        let id = uuid::Uuid::new_v4();
+        let id = Ulid::new();
 
         let (sql, values) = Query::insert()
             .into_table(BadgeIden::Table)

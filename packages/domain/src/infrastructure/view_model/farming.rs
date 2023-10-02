@@ -1,8 +1,8 @@
+use crate::domain::Ulid;
 use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use starknet::core::types::FieldElement;
 use time::PrimitiveDateTime;
-use uuid::Uuid;
 
 use crate::{
     domain::{crypto::U256, Erc20, HumanComprehensibleU256, Mass, SlotValue},
@@ -23,7 +23,7 @@ pub struct UriViewModel {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FarmingProjectsViewModel {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub name: String,
     pub slug: String,
@@ -48,7 +48,7 @@ impl From<tokio_postgres::Row> for FarmingProjectsViewModel {
 
 #[derive(Debug)]
 pub struct CustomerGlobalDataForComputation {
-    pub id: uuid::Uuid,
+    pub id: Ulid,
     pub unit_price: U256,
     pub payment_decimals: U256,
     pub payment_symbol: String,
@@ -125,7 +125,7 @@ impl CustomerGlobalData {
 
 #[derive(Debug)]
 pub struct CompleteFarmingData {
-    pub id: Uuid,
+    pub id: Ulid,
     pub address: String,
     pub times: Vec<PrimitiveDateTime>,
     pub absorptions: Vec<U256>,
@@ -135,9 +135,9 @@ pub struct CompleteFarmingData {
     pub payment_symbol: String,
     pub payment_address: Option<String>,
     pub offseter_address: Option<String>,
-    pub yielder_id: Option<Uuid>,
+    pub yielder_id: Option<Ulid>,
     pub yielder_address: Option<String>,
-    pub minter_id: Option<Uuid>,
+    pub minter_id: Option<Ulid>,
     pub total_value: Option<U256>,
     pub project_abi: Option<serde_json::Value>,
     pub minter_abi: Option<serde_json::Value>,

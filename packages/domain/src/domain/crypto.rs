@@ -28,7 +28,9 @@ impl Display for U256 {
 
 impl From<U256> for u32 {
     fn from(value: U256) -> Self {
-        value.0.to_words()[0].try_into().unwrap()
+        value.0.to_words()[0]
+            .try_into()
+            .expect("failed to convert u256 to u32")
     }
 }
 

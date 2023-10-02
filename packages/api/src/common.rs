@@ -3,6 +3,7 @@ use carbonable_domain::{
     domain::project::ProjectError,
     infrastructure::{postgres::PostgresError, starknet::model::ModelError},
 };
+use deadpool_postgres::PoolError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -29,6 +30,10 @@ pub enum ApiError {
     ModelError(#[from] ModelError),
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
+    #[error(transparent)]
+    PoolError(#[from] PoolError),
+    #[error(transparent)]
+    SerdeJsonError(#[from] serde_json::Error),
 }
 
 impl ResponseError for ApiError {}
