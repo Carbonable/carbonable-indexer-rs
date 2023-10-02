@@ -20,7 +20,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(ImplementationIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
@@ -40,7 +41,13 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(UriIden::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(UriIden::Id).uuid().not_null().primary_key())
+                    .col(
+                        ColumnDef::new(UriIden::Id)
+                            .string()
+                            .string_len(26)
+                            .not_null()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(UriIden::Uri).string().not_null())
                     .col(ColumnDef::new(UriIden::Address).string().not_null())
                     .col(ColumnDef::new(UriIden::Data).json().not_null())
@@ -62,7 +69,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(ProjectIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
@@ -108,8 +116,19 @@ impl MigrationTrait for Migration {
                             )
                             .not_null(),
                     )
-                    .col(ColumnDef::new(ProjectIden::ImplementationId).uuid().null())
-                    .col(ColumnDef::new(ProjectIden::UriId).uuid().null())
+                    .col(ColumnDef::new(ProjectIden::SlotUri).text())
+                    .col(
+                        ColumnDef::new(ProjectIden::ImplementationId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(ProjectIden::UriId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("project_implementation_id_fkey")
@@ -138,7 +157,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(PaymentIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
@@ -157,7 +177,12 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(PaymentIden::Decimals).binary().not_null())
-                    .col(ColumnDef::new(PaymentIden::ImplementationId).uuid().null())
+                    .col(
+                        ColumnDef::new(PaymentIden::ImplementationId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("payment_implementation_id_fkey")
@@ -176,7 +201,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(MinterIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
@@ -230,9 +256,24 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(MinterIden::Whitelist).json().null())
-                    .col(ColumnDef::new(MinterIden::ProjectId).uuid().null())
-                    .col(ColumnDef::new(MinterIden::PaymentId).uuid().null())
-                    .col(ColumnDef::new(MinterIden::ImplementationId).uuid().null())
+                    .col(
+                        ColumnDef::new(MinterIden::ProjectId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(MinterIden::PaymentId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(MinterIden::ImplementationId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("minter_project_id_fkey")
@@ -267,7 +308,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(BadgeIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
@@ -285,8 +327,18 @@ impl MigrationTrait for Migration {
                             .string_len(66)
                             .not_null(),
                     )
-                    .col(ColumnDef::new(BadgeIden::ImplementationId).uuid().null())
-                    .col(ColumnDef::new(BadgeIden::UriId).uuid().null())
+                    .col(
+                        ColumnDef::new(BadgeIden::ImplementationId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(BadgeIden::UriId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("badge_implementation_id_fkey")
@@ -313,7 +365,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(YielderIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
@@ -335,8 +388,18 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(YielderIden::SnapshotTime).date_time())
-                    .col(ColumnDef::new(YielderIden::ProjectId).uuid().null())
-                    .col(ColumnDef::new(YielderIden::ImplementationId).uuid().null())
+                    .col(
+                        ColumnDef::new(YielderIden::ProjectId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(YielderIden::ImplementationId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("yielder_project_id_fkey")
@@ -363,13 +426,19 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(ProvisionIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
                     .col(ColumnDef::new(ProvisionIden::Amount).binary().not_null())
                     .col(ColumnDef::new(ProvisionIden::Time).date_time().not_null())
-                    .col(ColumnDef::new(ProvisionIden::YielderId).uuid().null())
+                    .col(
+                        ColumnDef::new(ProvisionIden::YielderId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("provision_yielder_id_fkey")
@@ -388,7 +457,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(OffseterIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
@@ -415,8 +485,18 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(OffseterIden::MinClaimable).binary())
-                    .col(ColumnDef::new(OffseterIden::ProjectId).uuid().null())
-                    .col(ColumnDef::new(OffseterIden::ImplementationId).uuid().null())
+                    .col(
+                        ColumnDef::new(OffseterIden::ProjectId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(OffseterIden::ImplementationId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("offseter_project_id_fkey")
@@ -443,7 +523,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(SnapshotIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
@@ -498,7 +579,12 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(SnapshotIden::Time).date_time().not_null())
-                    .col(ColumnDef::new(SnapshotIden::YielderId).uuid().null())
+                    .col(
+                        ColumnDef::new(SnapshotIden::YielderId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("snapshot_yielder_id_fkey")
@@ -523,7 +609,12 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(TransferIden::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(TransferIden::Id).uuid().not_null())
+                    .col(
+                        ColumnDef::new(TransferIden::Id)
+                            .string()
+                            .string_len(26)
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(TransferIden::Hash).string().not_null())
                     .col(
                         ColumnDef::new(TransferIden::From)
@@ -540,7 +631,12 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(TransferIden::TokenId).binary().not_null())
                     .col(ColumnDef::new(TransferIden::Time).date_time().not_null())
                     .col(ColumnDef::new(TransferIden::BlockId).binary().not_null())
-                    .col(ColumnDef::new(TransferIden::ProjectId).uuid().null())
+                    .col(
+                        ColumnDef::new(TransferIden::ProjectId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("transfer_project_id_fkey")
@@ -567,7 +663,12 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(AirdropIden::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(AirdropIden::Id).uuid().not_null())
+                    .col(
+                        ColumnDef::new(AirdropIden::Id)
+                            .string()
+                            .string_len(26)
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(AirdropIden::Hash).string().not_null())
                     .col(
                         ColumnDef::new(AirdropIden::Address)
@@ -578,7 +679,12 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(AirdropIden::Quantity).binary().not_null())
                     .col(ColumnDef::new(AirdropIden::Time).date_time().not_null())
                     .col(ColumnDef::new(AirdropIden::BlockId).binary().not_null())
-                    .col(ColumnDef::new(AirdropIden::MinterId).uuid().null())
+                    .col(
+                        ColumnDef::new(AirdropIden::MinterId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("airdrop_minter_id_fkey")
@@ -605,7 +711,12 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(BuyIden::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(BuyIden::Id).uuid().not_null())
+                    .col(
+                        ColumnDef::new(BuyIden::Id)
+                            .string()
+                            .string_len(26)
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(BuyIden::Hash).string().not_null())
                     .col(
                         ColumnDef::new(BuyIden::Address)
@@ -616,7 +727,12 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(BuyIden::Quantity).binary().not_null())
                     .col(ColumnDef::new(BuyIden::Time).date_time().not_null())
                     .col(ColumnDef::new(BuyIden::BlockId).binary().not_null())
-                    .col(ColumnDef::new(BuyIden::MinterId).uuid().null())
+                    .col(
+                        ColumnDef::new(BuyIden::MinterId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("buy_minter_id_fkey")
@@ -643,7 +759,12 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(TransferSingleIden::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(TransferSingleIden::Id).uuid().not_null())
+                    .col(
+                        ColumnDef::new(TransferSingleIden::Id)
+                            .string()
+                            .string_len(26)
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(TransferSingleIden::Hash).string().not_null())
                     .col(
                         ColumnDef::new(TransferSingleIden::From)
@@ -672,7 +793,12 @@ impl MigrationTrait for Migration {
                             .binary()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(TransferSingleIden::BadgeId).uuid().null())
+                    .col(
+                        ColumnDef::new(TransferSingleIden::BadgeId)
+                            .string()
+                            .string_len(26)
+                            .null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("transfer_single_badge_id_fkey")

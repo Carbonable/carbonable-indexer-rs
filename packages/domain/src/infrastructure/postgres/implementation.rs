@@ -4,6 +4,8 @@ use sea_query_postgres::PostgresBinder;
 use std::sync::Arc;
 use tokio_postgres::error::SqlState;
 
+use crate::domain::Ulid;
+
 use super::{
     entity::{Implementation, ImplementationIden},
     PostgresError,
@@ -48,7 +50,7 @@ impl PostgresImplementation {
         address: &str,
         abi: serde_json::Value,
     ) -> Result<Implementation, PostgresError> {
-        let id = uuid::Uuid::new_v4();
+        let id = Ulid::new();
         let (sql, values) = Query::insert()
             .into_table(ImplementationIden::Table)
             .columns([

@@ -4,7 +4,10 @@ use deadpool_postgres::Pool;
 use sea_query::{Expr, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 
-use crate::infrastructure::starknet::model::{StarknetValue, StarknetValueResolver};
+use crate::{
+    domain::Ulid,
+    infrastructure::starknet::model::{StarknetValue, StarknetValueResolver},
+};
 
 use super::{
     entity::{Payment, PaymentIden},
@@ -46,7 +49,7 @@ impl PostgresPayment {
         mut data: HashMap<String, StarknetValue>,
     ) -> Result<Payment, PostgresError> {
         let client = self.db_client_pool.get().await?;
-        let id = uuid::Uuid::new_v4();
+        let id = Ulid::new();
         let name: String = data
             .get_mut("name")
             .expect("should have name")

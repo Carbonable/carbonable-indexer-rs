@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
+use crate::domain::Ulid;
 use apibara_core::starknet::v1alpha2::FieldElement;
 use deadpool_postgres::Transaction;
 use serde::{Deserialize, Serialize};
 use starknet::macros::selector;
 use tracing::error;
-use uuid::Uuid;
 
 use crate::{
     domain::crypto::U256,
@@ -291,7 +291,7 @@ impl Consumer<Transaction<'_>> for YielderSnapshotEventConsumer {
             felt_to_offset_datetime(event.payload.get("5").expect("should have current_time"));
 
         let snapshot = Snapshot {
-            id: Uuid::new_v4(),
+            id: Ulid::new(),
             previous_time,
             previous_project_absorption: FieldElement::from_hex(
                 event

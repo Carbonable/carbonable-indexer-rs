@@ -54,7 +54,7 @@ use super::{
 pub enum PostgresError {
     #[error(transparent)]
     TokioPostgresError(#[from] tokio_postgres::Error),
-    #[error("you have to provide 'DATABASE_URI' environment variable")]
+    #[error("you have to provide 'DATABASE_URL' environment variable")]
     NoEnvVarProvided(#[from] std::env::VarError),
     #[error(transparent)]
     PoolError(#[from] PoolError<tokio_postgres::Error>),
@@ -68,10 +68,12 @@ pub enum PostgresError {
     SerdeError(#[from] serde_json::Error),
     #[error("failed to seed project")]
     FailedToSeedProject,
+    #[error("failed to fetch last block number")]
+    FailedToFetchLastBlockNumber,
 }
 
 pub async fn get_connection(database_uri: Option<&str>) -> Result<Pool, PostgresError> {
-    let db_env_uri = std::env::var("DATABASE_URI")?;
+    let db_env_uri = std::env::var("DATABASE_URL")?;
     let config = database_uri.unwrap_or(&db_env_uri).parse::<Config>()?;
     let manager_config = ManagerConfig {
         recycling_method: RecyclingMethod::Verified,

@@ -1,18 +1,18 @@
+use crate::domain::Ulid;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::infrastructure::postgres::entity::ErcImplementation;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UriViewModel {
-    pub id: Option<Uuid>,
+    pub id: Option<Ulid>,
     pub uri: String,
     pub data: serde_json::Value,
 }
 
 #[derive(Serialize)]
 pub struct Project {
-    pub(crate) id: Uuid,
+    pub(crate) id: Ulid,
     pub(crate) address: String,
     pub(crate) name: String,
     pub(crate) slug: String,

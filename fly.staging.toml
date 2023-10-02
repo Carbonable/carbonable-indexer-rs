@@ -16,7 +16,8 @@ kill_timeout = "5s"
 
 [processes]
   api = "/srv/www/carbonable-api"
-  indexer = "/srv/www/carbonable-indexer --only-index"
+  indexer = "/srv/www/carbonable-indexer index --starting-block 800000"
+  event_store = "/srv/www/carbonable-indexer event-store"
 
 [[services]]
   protocol = "tcp"

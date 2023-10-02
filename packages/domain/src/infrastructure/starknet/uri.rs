@@ -79,9 +79,21 @@ impl StarknetModel<Metadata> for UriModel<Erc721> {
 #[async_trait::async_trait]
 impl StarknetModel<Erc3525Metadata> for UriModel<Erc3525> {
     async fn load(&self) -> Result<Erc3525Metadata, ModelError> {
+        let mut url = self.ipfs_link.to_owned();
+        if url == "https://www.example.com/".to_owned() {
+            url = "https://dev-carbonable-metadata.fly.dev/collection/8".to_owned();
+        }
+        if url.starts_with("data:application/json") {
+            let metadata: Erc3525Metadata = serde_json::from_str(
+                self.ipfs_link
+                    .replace("data:application/json,", "")
+                    .as_str(),
+            )?;
+            return Ok(metadata);
+        }
         let metadata: Erc3525Metadata = self
             .client
-            .get(self.ipfs_link.to_owned())
+            .get(url)
             .send()
             .await?
             .json()

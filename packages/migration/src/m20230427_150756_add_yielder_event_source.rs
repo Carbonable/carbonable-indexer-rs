@@ -13,7 +13,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(GlobalYieldIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )
@@ -43,7 +44,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(CustomerYieldIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )

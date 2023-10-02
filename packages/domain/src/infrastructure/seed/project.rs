@@ -123,6 +123,7 @@ impl Seeder for ProjectSeeder<Erc3525> {
                     ErcImplementation::Erc3525,
                     Some(implementation.id),
                     Some(uri.id),
+                    Some(project_uri),
                 )
                 .await?;
         }
@@ -176,6 +177,7 @@ impl ProjectSeeder<Erc3525> {
                 ErcImplementation::Erc3525,
                 Some(implementation.id),
                 Some(uri.id),
+                Some(slot_uri),
             )
             .await?;
 

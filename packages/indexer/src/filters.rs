@@ -31,7 +31,6 @@ fn configure_filter_item(filter: &mut Filter, application_filter: &Box<dyn Filte
 /// * `last_block_id` - The last block id to start from
 ///
 pub fn configure_stream_filters<P: AsRef<std::path::Path>>(
-    _app_config: &Args,
     file_path: P,
     application_filters: &mut [Box<dyn Filterable>],
     last_block_id: &u64,

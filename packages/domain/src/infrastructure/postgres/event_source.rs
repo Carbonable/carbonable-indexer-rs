@@ -1,3 +1,4 @@
+use crate::domain::Ulid;
 use deadpool_postgres::Transaction;
 use deadpool_postgres::{GenericClient, Object, Pool};
 use sea_query::{Expr, Func, Iden, PostgresQueryBuilder, Query};
@@ -6,7 +7,6 @@ use serde_json::json;
 use time::OffsetDateTime;
 use tokio_postgres::error::SqlState;
 use tracing::{debug, error};
-use uuid::Uuid;
 
 use crate::domain::event_source::BlockMetadata;
 use crate::domain::{
@@ -56,7 +56,7 @@ pub async fn insert_last_domain_event<'a>(
     event: &DomainEvent,
     metadata: &BlockMetadata,
 ) -> Result<(), PostgresError> {
-    let id = uuid::Uuid::new_v4();
+    let id = Ulid::new();
     let block_number = U256::from(metadata.number);
     let (sql, values) = Query::insert()
         .into_table(EventStoreIden::Table)
@@ -98,6 +98,23 @@ pub async fn insert_last_domain_event<'a>(
     }
 }
 
+/// Check if event was already processed by indexer.
+/// * client - [`&deadpool_postgres::Object`]
+/// * event_id - [`&str`]
+///
+pub async fn event_was_processed(client: &Object, event_id: &str) -> bool {
+    match client
+        .query_one(
+            r#"select id from event_store es where es.event_id = $1"#,
+            &[&event_id],
+        )
+        .await
+    {
+        Ok(_r) => true,
+        Err(_e) => false,
+    }
+}
+
 /// From blockchain `Transfer` event feeds data into database
 ///
 /// * tx: [`deadpool_postgres::Object`]
@@ -111,7 +128,7 @@ pub async fn create_token_for_customer<'a>(
     to: &str,
     token_id: &U256,
 ) -> Result<(), PostgresError> {
-    let id = uuid::Uuid::new_v4();
+    let id = Ulid::new();
     let (sql, values) = Query::insert()
         .into_table(CustomerTokenIden::Table)
         .columns([
@@ -350,11 +367,11 @@ pub async fn update_token_slot<'a>(
 ///
 pub async fn add_provision_to_yielder<'a>(
     tx: &Transaction<'a>,
-    yielder_id: Uuid,
+    yielder_id: Ulid,
     amount: U256,
     time: OffsetDateTime,
 ) -> Result<(), PostgresError> {
-    let id = uuid::Uuid::new_v4();
+    let id = Ulid::new();
     let (sql, values) = Query::insert()
         .into_table(ProvisionIden::Table)
         .columns([
@@ -389,7 +406,7 @@ pub async fn add_snapshot_to_yielder<'a>(
     tx: &Transaction<'a>,
     snapshot: &Snapshot,
 ) -> Result<(), PostgresError> {
-    let id = uuid::Uuid::new_v4();
+    let id = Ulid::new();
     let (sql, values) = Query::insert()
         .into_table(SnapshotIden::Table)
         .columns([
@@ -444,7 +461,7 @@ pub async fn add_snapshot_to_yielder<'a>(
 pub async fn get_yielder_id_from_address<'a>(
     tx: &Transaction<'a>,
     yielder_address: &str,
-) -> Option<Uuid> {
+) -> Option<Ulid> {
     let (sql, values) = Query::select()
         .from(YielderIden::Table)
         .column(YielderIden::Id)
@@ -453,7 +470,7 @@ pub async fn get_yielder_id_from_address<'a>(
 
     match tx.query_one(&sql, &values.as_params()).await {
         Ok(res) => {
-            let yielder_id: Uuid = res.get(0);
+            let yielder_id: Ulid = res.get(0);
             Some(yielder_id)
         }
         Err(_) => None,
@@ -546,7 +563,7 @@ pub async fn append_customer_action<'a>(
     farm_type: FarmType,
     action_type: ActionType,
 ) -> Result<(), PostgresError> {
-    let id = Uuid::new_v4();
+    let id = Ulid::new();
     let (sql, values) = Query::insert()
         .into_table(CustomerFarmIden::Table)
         .columns([
@@ -562,7 +579,7 @@ pub async fn append_customer_action<'a>(
         ])
         .values([
             id.into(),
-            customer_address.into(),
+            Func::lower(customer_address).into(),
             project_address.into(),
             slot.into(),
             value.into(),
@@ -577,6 +594,9 @@ pub async fn append_customer_action<'a>(
         Ok(_) => Ok(()),
         Err(e) => {
             error!("customer_farm.{farm_type}.{action_type}.error : {:#?}", e);
+            if e.code().eq(&Some(&SqlState::UNIQUE_VIOLATION)) {
+                return Ok(());
+            }
             Err(PostgresError::TokioPostgresError(e))
         }
     }

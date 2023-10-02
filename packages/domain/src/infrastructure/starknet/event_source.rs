@@ -9,6 +9,8 @@ impl DomainEvent {
     pub fn from_starknet_event(
         value: EventWithTransaction,
         application_filter: &mut [Box<dyn Filterable>],
+        last_event_idx: &mut usize,
+        last_processed_felt: &mut String,
     ) -> Self {
         let meta = &value
             .transaction
@@ -18,15 +20,26 @@ impl DomainEvent {
             .expect("meta is required");
 
         let felt = &meta.hash.clone().expect("hash is required");
+        // Doing some magic to keep track of the previously handled events
+        if felt.to_hex() != *last_processed_felt {
+            *last_processed_felt = felt.to_hex();
+            *last_event_idx = 0;
+        }
         let event = &value.event.clone().expect("event should not be empty");
-        let version = &value
+
+        let mut version = &value
             .receipt
             .clone()
             .unwrap()
             .events
             .iter()
+            .skip(*last_event_idx)
             .position(|e| *e == event.clone())
             .unwrap_or(0);
+        // Some magic to keep track of the "real" version
+        let next_version = &(*version + *last_event_idx);
+        version = next_version;
+        *last_event_idx = *version;
 
         let mut payload: HashMap<String, String> = HashMap::new();
 

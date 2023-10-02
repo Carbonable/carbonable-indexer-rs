@@ -13,7 +13,8 @@ impl MigrationTrait for Migration {
                     .table(CustomerTokenIden::Table)
                     .col(
                         ColumnDef::new(CustomerTokenIden::Id)
-                            .uuid()
+                            .string()
+                            .string_len(26)
                             .not_null()
                             .primary_key(),
                     )

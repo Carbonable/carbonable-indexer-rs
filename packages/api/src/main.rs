@@ -1,8 +1,6 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use carbonable_domain::infrastructure::{
-    app::{configure_application, Args},
-    postgres::get_connection,
-};
+use carbonable_domain::infrastructure::{app::Args, postgres::get_connection};
+use clap::Parser;
 use deadpool_postgres::Pool;
 use std::{
     io::{Error, ErrorKind},
@@ -33,15 +31,7 @@ pub struct AppDependencies {
 async fn main() -> std::io::Result<()> {
     info!("Starting Carbonable API...");
     env_logger::init();
-    let configuration = match configure_application().await {
-        Ok(c) => c,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "failed to configure application",
-            ))
-        }
-    };
+    let configuration = Args::parse();
     let db_client_pool = match get_connection(None).await {
         Ok(connection) => Arc::new(connection),
         Err(_) => {

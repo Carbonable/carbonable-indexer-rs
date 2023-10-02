@@ -5,6 +5,8 @@ use std::sync::Arc;
 use tokio_postgres::error::SqlState;
 use tracing::error;
 
+use crate::domain::Ulid;
+
 use super::{
     entity::{Uri, UriIden},
     PostgresError,
@@ -48,7 +50,7 @@ impl PostgresUri {
         data: serde_json::Value,
     ) -> Result<Uri, PostgresError> {
         let client = self.db_client_pool.get().await?;
-        let id = uuid::Uuid::new_v4();
+        let id = Ulid::new();
 
         let (sql, values) = Query::insert()
             .into_table(UriIden::Table)

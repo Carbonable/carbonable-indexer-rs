@@ -17,6 +17,7 @@ use time::OffsetDateTime;
 use crate::infrastructure::{
     postgres::PostgresError,
     starknet::{model::ModelError, SequencerError},
+    view_model::DomainEventViewModel,
 };
 
 use self::{
@@ -42,6 +43,17 @@ impl DomainEvent {
     }
 }
 
+impl From<&DomainEventViewModel> for DomainEvent {
+    fn from(value: &DomainEventViewModel) -> Self {
+        Self {
+            id: value.event_id.to_owned(),
+            metadata: value.metadata.to_owned(),
+            payload: value.payload.to_owned(),
+            r#type: value.r#type.to_owned(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlockMetadata {
     pub(crate) hash: String,
@@ -52,6 +64,18 @@ pub struct BlockMetadata {
 impl BlockMetadata {
     pub fn get_block(&self) -> u64 {
         self.number
+    }
+}
+impl From<&DomainEventViewModel> for BlockMetadata {
+    fn from(value: &DomainEventViewModel) -> Self {
+        Self {
+            hash: value.block_hash.to_owned(),
+            timestamp: value.recorded_at.assume_utc(),
+            number: value
+                .block_number
+                .try_into()
+                .expect("failed to convert block_number to u64"),
+        }
     }
 }
 
@@ -161,6 +185,10 @@ pub enum DomainError {
     SequencerError(#[from] SequencerError),
     #[error(transparent)]
     ModelError(#[from] ModelError),
+    #[error("failed to persist event to datastore")]
+    FailedToPersistEvent,
+    #[error("failed to rollback")]
+    FailedToRollback,
 }
 
 #[async_trait::async_trait]

@@ -147,7 +147,10 @@ async fn get_project_current_apr(
         vec![FieldElement::from_hex_be(&minter_address).unwrap()],
     )];
 
-    let data = parallelize_blockchain_rpc_calls(provider, calldata.to_vec()).await?;
+    let data = match parallelize_blockchain_rpc_calls(provider, calldata.to_vec()).await {
+        Ok(d) => d,
+        Err(_) => return Ok(ProjectApr::None),
+    };
     let apr = felt_to_u256(*data[0].clone().first().unwrap());
     Ok(ProjectApr::Value(apr.to_big_decimal(3)))
 }
@@ -266,8 +269,13 @@ pub async fn get_customer_details_project_data(
 ) -> Result<CustomerDetailsProjectData, ModelError> {
     let mut customer_details_project_data = CustomerDetailsProjectData::default();
 
-    let apr = get_project_current_apr(&project_data.yielder_address, &project_data.minter_address)
-        .await?;
+    let apr =
+        match get_project_current_apr(&project_data.yielder_address, &project_data.minter_address)
+            .await
+        {
+            Ok(a) => a,
+            Err(_) => ProjectApr::None,
+        };
     let mut builder = customer_details_project_data
         .with_contracts(&project_data, &farming_data)
         .with_apr(apr);

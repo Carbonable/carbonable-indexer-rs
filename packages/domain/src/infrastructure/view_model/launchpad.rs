@@ -1,9 +1,9 @@
 use crate::domain::{crypto::U256, Erc20, HumanComprehensibleU256, SlotValue};
 
 use super::project::UriViewModel;
+use crate::domain::Ulid;
 use serde::Serialize;
 use time::{macros::offset, OffsetDateTime, PrimitiveDateTime};
-use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
 pub struct Launchpad {
@@ -25,7 +25,7 @@ pub struct MinterContract {
 
 #[derive(Serialize)]
 pub struct LaunchpadProjectDetails {
-    pub(crate) id: Uuid,
+    pub(crate) id: Ulid,
     pub(crate) address: String,
     pub(crate) name: String,
     pub(crate) slug: String,
