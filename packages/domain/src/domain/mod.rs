@@ -29,11 +29,25 @@ impl SlotValue {
             value_decimals: value_decimals.into(),
         }
     }
+
+    pub fn inner(&self) -> U256 {
+        self.value
+    }
 }
 
 impl std::ops::AddAssign for SlotValue {
     fn add_assign(&mut self, rhs: Self) {
         self.value = self.value + rhs.value;
+    }
+}
+impl std::ops::AddAssign<U256> for SlotValue {
+    fn add_assign(&mut self, rhs: U256) {
+        self.value = self.value + rhs;
+    }
+}
+impl std::ops::SubAssign<U256> for SlotValue {
+    fn sub_assign(&mut self, rhs: U256) {
+        self.value = self.value - rhs;
     }
 }
 
@@ -64,6 +78,16 @@ impl std::ops::AddAssign for Erc20 {
         if self.symbol.is_empty() {
             self.symbol = rhs.symbol;
         }
+    }
+}
+impl std::ops::AddAssign<U256> for Erc20 {
+    fn add_assign(&mut self, rhs: U256) {
+        self.value = self.value + rhs;
+    }
+}
+impl std::ops::SubAssign<U256> for Erc20 {
+    fn sub_assign(&mut self, rhs: U256) {
+        self.value = self.value - rhs;
     }
 }
 
@@ -99,6 +123,16 @@ impl Mass<bigdecimal::BigDecimal> {
 impl<T: std::ops::AddAssign + std::ops::Add<Output = T> + Clone> std::ops::AddAssign for Mass<T> {
     fn add_assign(&mut self, rhs: Self) {
         self.value = self.value.clone() + rhs.value;
+    }
+}
+impl std::ops::AddAssign<U256> for Mass<U256> {
+    fn add_assign(&mut self, rhs: U256) {
+        self.value = self.value + rhs;
+    }
+}
+impl std::ops::SubAssign<U256> for Mass<U256> {
+    fn sub_assign(&mut self, rhs: U256) {
+        self.value = self.value - rhs;
     }
 }
 ///

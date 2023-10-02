@@ -23,7 +23,12 @@ where
     Txn: TransactionManager,
 {
     fn can_consume(&self, e: &Event) -> bool;
-    async fn consume(&self, e: &DomainEvent, txn: &mut Txn) -> Result<(), DomainError>;
+    async fn consume(
+        &self,
+        e: &DomainEvent,
+        metadata: &BlockMetadata,
+        txn: &mut Txn,
+    ) -> Result<(), DomainError>;
 }
 
 #[derive(Debug)]
@@ -59,27 +64,33 @@ impl EventBus<Pool, Box<dyn for<'a> Consumer<Transaction<'a>>>> {
         metadata: &BlockMetadata,
     ) -> Result<(), DomainError> {
         let mut client = self.client_pool.clone().get().await?;
-        let mut tx = client.transaction().await?;
+        let tx = client.transaction().await?;
+        // Rollback transaction if storing domain event fails
+        match insert_last_domain_event(&tx, event, metadata).await {
+            Ok(_) => &tx.commit().await?,
+            Err(err) => {
+                error!("event_store.committing.error: {:#?}", err);
+                &tx.rollback().await?
+            }
+        };
 
+        let mut tx = client.transaction().await?;
         for consumer in &self.consumers {
             if consumer.can_consume(&event.r#type) {
                 debug!(
                     "Dispatching event: {:?} with id : {:?}",
                     &event.r#type, &event.id
                 );
-                consumer.consume(event, &mut tx).await?;
+                consumer.consume(event, metadata, &mut tx).await?;
             }
         }
 
-        // Rollback transaction if storing domain event fails
-        match insert_last_domain_event(&tx, event, metadata).await {
-            Ok(_) => &tx.commit().await?,
-            Err(err) => {
-                error!("error while commiting to db : {:#?}", err);
-                &tx.rollback().await?
+        match tx.commit().await {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                error!("event_store.domain_event.committing.error: {:#?}", e);
+                Ok(())
             }
-        };
-
-        Ok(())
+        }
     }
 }

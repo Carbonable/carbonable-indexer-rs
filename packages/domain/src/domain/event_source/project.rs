@@ -11,9 +11,11 @@ use deadpool_postgres::Transaction;
 use serde::{Deserialize, Serialize};
 use starknet::macros::selector;
 use std::{collections::HashMap, sync::Mutex};
+use tracing::{error, info};
 
 use super::{
-    event_bus::Consumer, get_event, to_filters, DomainError, DomainEvent, Event, Filterable,
+    event_bus::Consumer, get_event, to_filters, BlockMetadata, DomainError, DomainEvent, Event,
+    Filterable,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,7 +113,12 @@ impl Consumer<Transaction<'_>> for ProjectTransferEventConsumer {
         matches!(event, Event::Project(ProjectEvents::Transfer))
     }
 
-    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
+    async fn consume(
+        &self,
+        event: &DomainEvent,
+        _metadata: &BlockMetadata,
+        txn: &mut Transaction,
+    ) -> Result<(), DomainError> {
         // if transfer `from`=0 this means token_id is created.
         // when transfer event is emitted in blockchain, it only has data about transfer from one
         // address to an other.
@@ -148,6 +155,7 @@ impl Consumer<Mutex<HashMap<String, Vec<DomainEvent>>>> for ProjectTransferEvent
     async fn consume(
         &self,
         event: &DomainEvent,
+        _metadata: &BlockMetadata,
         tx: &mut Mutex<HashMap<String, Vec<DomainEvent>>>,
     ) -> Result<(), DomainError> {
         let lock = tx.get_mut().unwrap();
@@ -175,7 +183,12 @@ impl Consumer<Transaction<'_>> for ProjectTransferValueEventConsumer {
         matches!(event, Event::Project(ProjectEvents::TransferValue))
     }
 
-    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
+    async fn consume(
+        &self,
+        event: &DomainEvent,
+        _metadata: &BlockMetadata,
+        txn: &mut Transaction,
+    ) -> Result<(), DomainError> {
         let from_address = event.metadata.get("from_address").unwrap();
         let from_token_id =
             U256::from(FieldElement::from_hex(event.payload.get("0").unwrap()).unwrap());
@@ -183,9 +196,15 @@ impl Consumer<Transaction<'_>> for ProjectTransferValueEventConsumer {
             U256::from(FieldElement::from_hex(event.payload.get("2").unwrap()).unwrap());
         let value = U256::from(FieldElement::from_hex(event.payload.get("4").unwrap()).unwrap());
 
-        update_token_value(txn, from_address, &to_token_id, &value).await?;
+        match update_token_value(txn, from_address, &to_token_id, value.clone()).await {
+            Ok(_) => info!("project.transfer_value.update: success"),
+            Err(e) => error!("project.transfer_value.update: failed {:#?}", e),
+        }
 
-        decrease_token_value(txn, from_address, &from_token_id, &value).await?;
+        match decrease_token_value(txn, from_address, &from_token_id, value.clone()).await {
+            Ok(_) => info!("project.transfer_value.decrease: success"),
+            Err(e) => error!("project.transfer_value.decrease: failed {:#?}", e),
+        }
         Ok(())
     }
 }
@@ -205,7 +224,12 @@ impl Consumer<Transaction<'_>> for ProjectSlotChangedEventConsumer {
         matches!(event, Event::Project(ProjectEvents::SlotChanged))
     }
 
-    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
+    async fn consume(
+        &self,
+        event: &DomainEvent,
+        _metadata: &BlockMetadata,
+        txn: &mut Transaction,
+    ) -> Result<(), DomainError> {
         // token_id is unique per contract AND per slot.
         let from_address = event.metadata.get("from_address").unwrap();
         let token_id = U256::from(FieldElement::from_hex(event.payload.get("0").unwrap()).unwrap());
@@ -237,7 +261,12 @@ impl Consumer<Transaction<'_>> for ProjectProjectValueUpdateEventConsumer {
         matches!(event, Event::Project(ProjectEvents::ProjectValueUpdate))
     }
 
-    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
+    async fn consume(
+        &self,
+        event: &DomainEvent,
+        _metadata: &BlockMetadata,
+        txn: &mut Transaction,
+    ) -> Result<(), DomainError> {
         // slot: Uint256, projectValue: Uint256
         let from_address = event.metadata.get("from_address").unwrap();
         let slot = U256::from(FieldElement::from_hex(event.payload.get("0").unwrap()).unwrap());

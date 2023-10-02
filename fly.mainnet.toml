@@ -22,6 +22,9 @@ kill_timeout = "5s"
   protocol = "tcp"
   internal_port = 8080
   processes = ["api"]
+  auto_machine_start = true
+  auto_machine_stop = false
+  min_machine_running = 1
 
   [[services.ports]]
     port = 80

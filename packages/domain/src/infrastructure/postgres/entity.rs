@@ -54,6 +54,105 @@ impl From<ErcImplementation> for &str {
         }
     }
 }
+#[derive(Debug, ToSql, Iden)]
+pub enum FarmType {
+    #[iden = "farm_type"]
+    Enum,
+    #[iden = "yield"]
+    Yield,
+    #[iden = "offset"]
+    Offset,
+}
+impl Display for FarmType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FarmType::Yield => write!(f, "yield"),
+            FarmType::Offset => write!(f, "offset"),
+            FarmType::Enum => panic!("Not a valid farm type"),
+        }
+    }
+}
+
+impl<'a> FromSql<'a> for FarmType {
+    fn from_sql(
+        _ty: &postgres_types::Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let s = std::str::from_utf8(raw)?;
+        match s {
+            "yield" => Ok(FarmType::Yield),
+            "offset" => Ok(FarmType::Offset),
+            _ => Err("Unrecognized enum farm type variant".into()),
+        }
+    }
+
+    fn accepts(ty: &postgres_types::Type) -> bool {
+        ty.name() == "farm_type"
+    }
+}
+
+impl From<FarmType> for &str {
+    fn from(value: FarmType) -> &'static str {
+        match value {
+            FarmType::Yield => "yield",
+            FarmType::Offset => "offset",
+            FarmType::Enum => panic!("Not a valid farm type impl"),
+        }
+    }
+}
+
+#[derive(Debug, ToSql, Iden)]
+pub enum ActionType {
+    #[iden = "action_type"]
+    Enum,
+    #[iden = "withdraw"]
+    Withdraw,
+    #[iden = "deposit"]
+    Deposit,
+    #[iden = "claim"]
+    Claim,
+}
+
+impl Display for ActionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ActionType::Withdraw => write!(f, "withdraw"),
+            ActionType::Deposit => write!(f, "deposit"),
+            ActionType::Claim => write!(f, "claim"),
+            ActionType::Enum => panic!("Not a valid farm type"),
+        }
+    }
+}
+
+impl<'a> FromSql<'a> for ActionType {
+    fn from_sql(
+        _ty: &postgres_types::Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let s = std::str::from_utf8(raw)?;
+        match s {
+            "withdraw" => Ok(ActionType::Withdraw),
+            "deposit" => Ok(ActionType::Deposit),
+            "claim" => Ok(ActionType::Claim),
+            _ => Err("Unrecognized enum action type variant".into()),
+        }
+    }
+
+    fn accepts(ty: &postgres_types::Type) -> bool {
+        ty.name() == "action_type"
+    }
+}
+
+impl From<ActionType> for &str {
+    fn from(value: ActionType) -> &'static str {
+        match value {
+            ActionType::Withdraw => "withdraw",
+            ActionType::Deposit => "deposit",
+            ActionType::Claim => "claim",
+            ActionType::Enum => panic!("Not a valid action type impl"),
+        }
+    }
+}
 
 impl<'a> FromSql<'a> for Event {
     fn from_sql(
@@ -392,20 +491,14 @@ pub struct EventStore {
 }
 
 #[enum_def]
-pub struct GlobalYield {
+pub struct CustomerFarm {
     pub id: Uuid,
-    pub yielder_address: String,
-    pub deposited: U256,
-    pub claimed: U256,
-    pub claimable: U256,
-}
-
-#[enum_def]
-pub struct CustomerYield {
-    pub id: Uuid,
-    pub address: String,
-    pub yielder_address: String,
-    pub deposited: U256,
-    pub claimed: U256,
-    pub claimable: U256,
+    pub customer_address: String,
+    pub project_address: String,
+    pub slot: U256,
+    pub value: U256,
+    pub farm_type: FarmType,
+    pub action_type: ActionType,
+    pub event_id: String,
+    pub event_timestamp: PrimitiveDateTime,
 }

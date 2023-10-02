@@ -167,13 +167,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(None) => continue,
                 Err(e) => {
                     error!("Error while streaming: {}", e);
-                    info!("Restarting stream");
-                    let restarting_cfg = stream_config;
-                    let cfg = restarting_cfg.with_starting_block(last_block_id);
+                    // info!("Restarting stream");
+                    // let restarting_cfg = stream_config;
+                    // let cfg = restarting_cfg.with_starting_block(last_block_id);
+                    //
+                    // configuration_handle.send(cfg.clone()).await?;
 
-                    configuration_handle.send(cfg.clone()).await?;
-
-                    break;
+                    panic!("Restarting stream");
                 }
             }
         }

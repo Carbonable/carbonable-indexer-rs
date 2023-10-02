@@ -5,8 +5,17 @@ use deadpool_postgres::Transaction;
 use serde::{Deserialize, Serialize};
 use starknet::macros::selector;
 
+use crate::{
+    domain::crypto::U256,
+    infrastructure::postgres::{
+        entity::{ActionType, FarmType},
+        event_source::{append_customer_action, find_related_project_address_and_slot},
+    },
+};
+
 use super::{
-    event_bus::Consumer, get_event, to_filters, DomainError, DomainEvent, Event, Filterable,
+    event_bus::Consumer, get_event, to_filters, BlockMetadata, DomainError, DomainEvent, Event,
+    Filterable,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +105,7 @@ impl Consumer<Transaction<'_>> for OffseterUpgradedEventConsumer {
     async fn consume(
         &self,
         _event: &DomainEvent,
+        _metadata: &BlockMetadata,
         _txn: &mut Transaction,
     ) -> Result<(), DomainError> {
         // event not handled at the moment but it will be stored in database later on.
@@ -120,10 +130,37 @@ impl Consumer<Transaction<'_>> for OffseterDepositEventConsumer {
 
     async fn consume(
         &self,
-        _event: &DomainEvent,
-        _txn: &mut Transaction,
+        event: &DomainEvent,
+        metadata: &BlockMetadata,
+        txn: &mut Transaction,
     ) -> Result<(), DomainError> {
-        // event not handled at the moment but it will be stored in database later on.
+        let from_address = event
+            .metadata
+            .get("from_address")
+            .expect("should have from_address");
+        let (project_address, slot) =
+            find_related_project_address_and_slot(txn, &from_address, FarmType::Offset).await?;
+        let customer_address = event
+            .payload
+            .get("0")
+            .expect("should have customer_address");
+        let value = U256::from(
+            FieldElement::from_hex(event.payload.get("1").expect("should have value")).unwrap(),
+        );
+
+        append_customer_action(
+            txn,
+            event.id.as_str(),
+            metadata.timestamp,
+            customer_address,
+            &project_address,
+            &slot,
+            &value,
+            FarmType::Offset,
+            ActionType::Deposit,
+        )
+        .await?;
+
         Ok(())
     }
 }
@@ -145,10 +182,37 @@ impl Consumer<Transaction<'_>> for OffseterWithdrawEventConsumer {
 
     async fn consume(
         &self,
-        _event: &DomainEvent,
-        _txn: &mut Transaction,
+        event: &DomainEvent,
+        metadata: &BlockMetadata,
+        txn: &mut Transaction,
     ) -> Result<(), DomainError> {
-        // event not handled at the moment but it will be stored in database later on.
+        let from_address = event
+            .metadata
+            .get("from_address")
+            .expect("should have from_address");
+        let (project_address, slot) =
+            find_related_project_address_and_slot(txn, &from_address, FarmType::Offset).await?;
+        let customer_address = event
+            .payload
+            .get("0")
+            .expect("should have customer_address");
+        let value = U256::from(
+            FieldElement::from_hex(event.payload.get("1").expect("should have value")).unwrap(),
+        );
+
+        append_customer_action(
+            txn,
+            event.id.as_str(),
+            metadata.timestamp,
+            customer_address,
+            &project_address,
+            &slot,
+            &value,
+            FarmType::Offset,
+            ActionType::Withdraw,
+        )
+        .await?;
+
         Ok(())
     }
 }
@@ -170,10 +234,37 @@ impl Consumer<Transaction<'_>> for OffseterClaimEventConsumer {
 
     async fn consume(
         &self,
-        _event: &DomainEvent,
-        _txn: &mut Transaction,
+        event: &DomainEvent,
+        metadata: &BlockMetadata,
+        txn: &mut Transaction,
     ) -> Result<(), DomainError> {
-        // event not handled at the moment but it will be stored in database later on.
+        let from_address = event
+            .metadata
+            .get("from_address")
+            .expect("should have from_address");
+        let (project_address, slot) =
+            find_related_project_address_and_slot(txn, &from_address, FarmType::Offset).await?;
+        let customer_address = event
+            .payload
+            .get("0")
+            .expect("should have customer_address");
+        let value = U256::from(
+            FieldElement::from_hex(event.payload.get("1").expect("should have value")).unwrap(),
+        );
+
+        append_customer_action(
+            txn,
+            event.id.as_str(),
+            metadata.timestamp,
+            customer_address,
+            &project_address,
+            &slot,
+            &value,
+            FarmType::Offset,
+            ActionType::Claim,
+        )
+        .await?;
+
         Ok(())
     }
 }

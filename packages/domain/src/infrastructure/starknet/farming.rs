@@ -9,7 +9,7 @@ use crate::infrastructure::{
     view_model::{
         customer::CustomerToken,
         farming::{
-            CompleteFarmingData, CustomerDetailsProjectData, CustomerGlobalData,
+            CompleteFarmingData, CustomerDetailsProjectData, CustomerFarm, CustomerGlobalData,
             CustomerGlobalDataForComputation, CustomerListingProjectData, ProjectApr,
             ProjectStatus, UnconnectedFarmingData,
         },
@@ -27,28 +27,18 @@ use super::{
         felt_to_u256, parallelize_blockchain_rpc_calls, u256_to_felt, ModelError, StarknetValue,
         StarknetValueResolver,
     },
-    portfolio::get_value_of_token_in_slot,
 };
 
 /// Get cumulated value of tokens in slot for customer
 pub async fn get_value_of(
-    provider: Arc<JsonRpcClient<HttpTransport>>,
-    address: String,
+    _provider: Arc<JsonRpcClient<HttpTransport>>,
+    _address: String,
     customer_tokens: &mut [CustomerToken],
 ) -> Result<U256, ModelError> {
-    // get user token_ids for slot
-    // for each id -> value_of(token_id)
-    // cumsum of all values
-
-    // let balance = get_balance_of(&provider.clone(), &address.clone(), &wallet.clone()).await?;
     let mut value = U256::zero();
 
     for token_index in customer_tokens {
-        let value_in_slot =
-            get_value_of_token_in_slot(&provider, &address, &token_index.token_id).await?;
-        token_index.value = value_in_slot;
-
-        value += value_in_slot;
+        value += token_index.value;
     }
 
     Ok(value)
@@ -232,6 +222,7 @@ pub async fn get_customer_listing_project_data(
     farming_data: CompleteFarmingData,
     wallet: &str,
     customer_tokens: &mut [CustomerToken],
+    customer_farm: &CustomerFarm,
 ) -> Result<CustomerListingProjectData, ModelError> {
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     let values = [
@@ -245,21 +236,6 @@ pub async fn get_customer_listing_project_data(
             "get_claimable_of",
             vec![FieldElement::from_hex_be(wallet).unwrap()],
         ),
-        (
-            project_data.yielder_address.to_string(),
-            "get_deposited_of",
-            vec![FieldElement::from_hex_be(wallet).unwrap()],
-        ),
-        (
-            project_data.offseter_address.to_string(),
-            "get_deposited_of",
-            vec![FieldElement::from_hex_be(wallet).unwrap()],
-        ),
-        // (
-        //     project_data.offseter_address.to_string(),
-        //     "get_min_claimable",
-        //     vec![],
-        // ),
     ];
 
     let data = parallelize_blockchain_rpc_calls(provider.clone(), values.to_vec()).await?;
@@ -276,6 +252,7 @@ pub async fn get_customer_listing_project_data(
         project_data,
         farming_data,
         value_of,
+        customer_farm,
     )))
 }
 
@@ -285,6 +262,7 @@ pub async fn get_customer_details_project_data(
     farming_data: CompleteFarmingData,
     wallet: &str,
     customer_tokens: &mut [CustomerToken],
+    customer_farm: &CustomerFarm,
 ) -> Result<CustomerDetailsProjectData, ModelError> {
     let mut customer_details_project_data = CustomerDetailsProjectData::default();
 
@@ -303,32 +281,12 @@ pub async fn get_customer_details_project_data(
         ),
         (
             project_data.offseter_address.to_string(),
-            "get_deposited_of",
-            vec![FieldElement::from_hex_be(wallet).unwrap()],
-        ),
-        (
-            project_data.yielder_address.to_string(),
-            "get_deposited_of",
-            vec![FieldElement::from_hex_be(wallet).unwrap()],
-        ),
-        (
-            project_data.offseter_address.to_string(),
             "get_claimable_of",
             vec![FieldElement::from_hex_be(wallet).unwrap()],
         ),
         (
             project_data.yielder_address.to_string(),
             "get_claimable_of",
-            vec![FieldElement::from_hex_be(wallet).unwrap()],
-        ),
-        (
-            project_data.offseter_address.to_string(),
-            "get_claimed_of",
-            vec![FieldElement::from_hex_be(wallet).unwrap()],
-        ),
-        (
-            project_data.yielder_address.to_string(),
-            "get_claimed_of",
             vec![FieldElement::from_hex_be(wallet).unwrap()],
         ),
         (
@@ -361,6 +319,7 @@ pub async fn get_customer_details_project_data(
         &project_data,
         &value_of,
         customer_tokens,
+        customer_farm,
     );
 
     let customer_details_project_data = builder.build();

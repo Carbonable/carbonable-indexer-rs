@@ -6,8 +6,12 @@ use sea_query_postgres::PostgresBinder;
 use tracing::error;
 use uuid::Uuid;
 
-use crate::infrastructure::view_model::farming::{
-    CompleteFarmingData, CustomerGlobalDataForComputation, FarmingProjectsViewModel,
+use crate::infrastructure::{
+    postgres::entity::CustomerFarmIden,
+    view_model::farming::{
+        CompleteFarmingData, CustomerFarm, CustomerGlobalDataForComputation,
+        FarmingProjectsViewModel,
+    },
 };
 
 use super::{
@@ -332,6 +336,86 @@ impl PostgresFarming {
             }
             Err(e) => {
                 error!("{:#?}", e);
+                Err(PostgresError::TokioPostgresError(e))
+            }
+        }
+    }
+
+    pub async fn get_customer_farm(
+        &self,
+        customer_address: &str,
+        project_address: &str,
+        slot: &U256,
+    ) -> Result<CustomerFarm, PostgresError> {
+        let client = self.db_client_pool.clone().get().await?;
+
+        let (sql, values) = Query::select()
+            .columns([
+                (ProjectIden::Table, ProjectIden::ValueDecimals),
+                (ProjectIden::Table, ProjectIden::TonEquivalent),
+            ])
+            .columns([
+                (PaymentIden::Table, PaymentIden::Decimals),
+                (PaymentIden::Table, PaymentIden::Symbol),
+            ])
+            .from(ProjectIden::Table)
+            .inner_join(
+                MinterIden::Table,
+                Expr::col((MinterIden::Table, MinterIden::ProjectId))
+                    .equals((ProjectIden::Table, ProjectIden::Id)),
+            )
+            .inner_join(
+                PaymentIden::Table,
+                Expr::col((MinterIden::Table, MinterIden::PaymentId))
+                    .equals((PaymentIden::Table, PaymentIden::Id)),
+            )
+            .and_where(Expr::col((ProjectIden::Table, ProjectIden::Address)).eq(project_address))
+            .build_postgres(PostgresQueryBuilder);
+
+        match client.query_one(sql.as_str(), &values.as_params()).await {
+            Ok(res) => {
+                let value_decimals: U256 = res.get(0);
+                let ton_equivalent: U256 = res.get(1);
+                let payment_decimals: U256 = res.get(2);
+                let symbol: String = res.get(3);
+
+                let (sql, values) = Query::select()
+                    .columns([
+                        (CustomerFarmIden::Table, CustomerFarmIden::Id),
+                        (CustomerFarmIden::Table, CustomerFarmIden::Value),
+                        (CustomerFarmIden::Table, CustomerFarmIden::FarmType),
+                        (CustomerFarmIden::Table, CustomerFarmIden::ActionType),
+                    ])
+                    .from(CustomerFarmIden::Table)
+                    .and_where(
+                        Expr::col((CustomerFarmIden::Table, CustomerFarmIden::CustomerAddress))
+                            .eq(customer_address),
+                    )
+                    .and_where(
+                        Expr::col((CustomerFarmIden::Table, CustomerFarmIden::ProjectAddress))
+                            .eq(project_address),
+                    )
+                    .and_where(
+                        Expr::col((CustomerFarmIden::Table, CustomerFarmIden::Slot)).eq(slot),
+                    )
+                    .build_postgres(PostgresQueryBuilder);
+
+                match client.query(sql.as_str(), &values.as_params()).await {
+                    Ok(res) => Ok(CustomerFarm::from((
+                        res,
+                        payment_decimals,
+                        value_decimals,
+                        ton_equivalent,
+                        symbol,
+                    ))),
+                    Err(e) => {
+                        error!("get_customer_farm -> {:#?}", e);
+                        Err(PostgresError::TokioPostgresError(e))
+                    }
+                }
+            }
+            Err(e) => {
+                error!("get_customer_farm -> {:#?}", e);
                 Err(PostgresError::TokioPostgresError(e))
             }
         }

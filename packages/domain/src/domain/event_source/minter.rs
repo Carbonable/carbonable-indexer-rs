@@ -17,7 +17,8 @@ use crate::{
 };
 
 use super::{
-    event_bus::Consumer, get_event, to_filters, DomainError, DomainEvent, Event, Filterable,
+    event_bus::Consumer, get_event, to_filters, BlockMetadata, DomainError, DomainEvent, Event,
+    Filterable,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,7 +106,12 @@ impl Consumer<Transaction<'_>> for MinterMigrationEventConsumer {
         matches!(event, Event::Minter(MinterEvents::Migration))
     }
 
-    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
+    async fn consume(
+        &self,
+        event: &DomainEvent,
+        _metadata: &BlockMetadata,
+        txn: &mut Transaction,
+    ) -> Result<(), DomainError> {
         // Migration(address: felt, tokenId: u256, newTokenId: u256, slot: u256, value: u256);
         // Catch migration to update total_supply on project if
         let minter_721 = event
@@ -199,6 +205,7 @@ impl Consumer<Transaction<'_>> for MinterAirdropEventConsumer {
     async fn consume(
         &self,
         _event: &DomainEvent,
+        _metadata: &BlockMetadata,
         _txn: &mut Transaction,
     ) -> Result<(), DomainError> {
         // Airdrop(address: felt, quantity: felt, time: felt)
@@ -225,6 +232,7 @@ impl Consumer<Transaction<'_>> for MinterBuyEventConsumer {
     async fn consume(
         &self,
         _event: &DomainEvent,
+        _metadata: &BlockMetadata,
         _txn: &mut Transaction,
     ) -> Result<(), DomainError> {
         // Airdrop(address: felt, amount: u256, quantity: felt, time: felt)

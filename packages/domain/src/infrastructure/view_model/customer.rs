@@ -22,12 +22,18 @@ pub struct CustomerTokenWithSlotValue {
 
 impl From<tokio_postgres::Row> for CustomerToken {
     fn from(value: tokio_postgres::Row) -> Self {
+        let row_token_value: Option<U256> = value.get(4);
+        let token_value = match row_token_value {
+            Some(v) => v,
+            None => U256::zero(),
+        };
+
         Self {
             wallet: value.get(0),
             project_address: value.get(1),
             slot: value.get(2),
             token_id: value.get(3),
-            value: value.get(4),
+            value: token_value,
             value_decimals: value.get(5),
         }
     }

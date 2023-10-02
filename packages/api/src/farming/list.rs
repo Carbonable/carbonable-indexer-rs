@@ -105,6 +105,7 @@ pub async fn connected(
     ensure_starknet_wallet(&mut wallet);
     let project_model = PostgresFarming::new(data.db_client_pool.clone());
     let customer_model = PostgresCustomer::new(data.db_client_pool.clone());
+    let farming_model = PostgresFarming::new(data.db_client_pool.clone());
 
     let mut project_data = project_model
         .get_data_for_farming(Some(slug.to_string()))
@@ -135,10 +136,18 @@ pub async fn connected(
     let mut customer_tokens = customer_model
         .get_customer_tokens(&wallet, &project.project_address, &project.slot)
         .await?;
+    let customer_farm = farming_model
+        .get_customer_farm(&wallet, &project.project_address, &project.slot)
+        .await?;
 
-    let customer_project_data =
-        get_customer_listing_project_data(project, farming_data, &wallet, &mut customer_tokens)
-            .await?;
+    let customer_project_data = get_customer_listing_project_data(
+        project,
+        farming_data,
+        &wallet,
+        &mut customer_tokens,
+        &customer_farm,
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(ServerResponse::Data {
         data: customer_project_data,
