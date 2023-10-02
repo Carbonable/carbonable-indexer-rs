@@ -1,9 +1,11 @@
+use std::fmt::Display;
+
 use bigdecimal::ToPrimitive;
 use crypto_bigint::{CheckedAdd, CheckedMul, CheckedSub, Encoding};
 use postgres_types::FromSql;
 use serde::Serialize;
 
-#[derive(Debug, Copy, PartialEq, Eq, Default, Clone)]
+#[derive(Debug, Copy, PartialEq, PartialOrd, Eq, Default, Clone)]
 pub struct U256(pub(crate) crypto_bigint::U256);
 impl U256 {
     pub fn zero() -> Self {
@@ -16,6 +18,11 @@ impl U256 {
             BigInt::from_bytes_be(Sign::Plus, &crypto_bigint::Encoding::to_be_bytes(&self.0)),
             decimals.into(),
         )
+    }
+}
+impl Display for U256 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.to_string())
     }
 }
 

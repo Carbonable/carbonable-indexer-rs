@@ -6,7 +6,10 @@ use uuid::Uuid;
 
 use crate::{
     domain::{crypto::U256, Erc20, HumanComprehensibleU256, Mass, SlotValue},
-    infrastructure::starknet::model::{StarknetValue, StarknetValueResolver},
+    infrastructure::{
+        postgres::entity::{ActionType, FarmType},
+        starknet::model::{StarknetValue, StarknetValueResolver},
+    },
 };
 
 use super::customer::{CustomerToken, CustomerTokenWithSlotValue};
@@ -233,6 +236,7 @@ impl
         CustomerGlobalDataForComputation,
         CompleteFarmingData,
         U256,
+        &CustomerFarm,
     )> for CustomerListingProjectData
 {
     fn from(
@@ -241,23 +245,19 @@ impl
             CustomerGlobalDataForComputation,
             CompleteFarmingData,
             U256,
+            &CustomerFarm,
         ),
     ) -> Self {
         let blockchain_response = value.0;
         let project_data = value.1;
         let farming_data = value.2;
         let value_of = value.3;
+        let customer_farm = value.4;
 
         let yielder_claimable: U256 = StarknetValue::new(blockchain_response[0].clone())
             .resolve("u256")
             .into();
         let offseter_claimable: U256 = StarknetValue::new(blockchain_response[1].clone())
-            .resolve("u256")
-            .into();
-        let yielder_deposited: U256 = StarknetValue::new(blockchain_response[2].clone())
-            .resolve("u256")
-            .into();
-        let offseter_deposited: U256 = StarknetValue::new(blockchain_response[3].clone())
             .resolve("u256")
             .into();
         // TODO: Use this value again
@@ -266,7 +266,8 @@ impl
         // .into();
         let min_claimable: U256 = U256::from(crypto_bigint::U256::from_u64(1000000));
 
-        let total_value = yielder_deposited + offseter_deposited;
+        let total_value =
+            customer_farm.yielder_deposited.inner() + customer_farm.offseter_deposited.inner();
         Self {
             customer_stake: SlotValue::from_blockchain(total_value, farming_data.value_decimals)
                 .into(),
@@ -379,19 +380,15 @@ impl CustomerDetailsProjectData {
         farming_data: &CustomerGlobalDataForComputation,
         value_of: &U256,
         customer_tokens: &mut [CustomerToken],
+        customer_farm: &CustomerFarm,
     ) -> &mut Self {
         let current_absorption: U256 = StarknetValue::new(data[0].clone()).resolve("u256").into();
-        let offseter_deposited_of: U256 =
-            StarknetValue::new(data[1].clone()).resolve("u256").into();
-        let yielder_deposited_of: U256 = StarknetValue::new(data[2].clone()).resolve("u256").into();
-        let claimable_of: U256 = StarknetValue::new(data[3].clone()).resolve("u256").into();
-        let releasable_of: U256 = StarknetValue::new(data[4].clone()).resolve("u256").into();
-        let claimed_of: U256 = StarknetValue::new(data[5].clone()).resolve("u256").into();
-        let released_of: U256 = StarknetValue::new(data[6].clone()).resolve("u256").into();
+        let claimable_of: U256 = StarknetValue::new(data[1].clone()).resolve("u256").into();
+        let releasable_of: U256 = StarknetValue::new(data[2].clone()).resolve("u256").into();
         let offseter_total_deposited: U256 =
-            StarknetValue::new(data[7].clone()).resolve("u256").into();
+            StarknetValue::new(data[3].clone()).resolve("u256").into();
         let yielder_total_deposited: U256 =
-            StarknetValue::new(data[8].clone()).resolve("u256").into();
+            StarknetValue::new(data[4].clone()).resolve("u256").into();
         let project_value: U256 = farming_data.project_value;
         // TODO: Use real value
         // let min_to_claim: U256 = StarknetValue::new(data[9].clone()).resolve("u256").into();
@@ -413,16 +410,16 @@ impl CustomerDetailsProjectData {
 
         self.carbon_credits.generated_credits = Mass::<BigDecimal>::from_blockchain(
             current_absorption.to_big_decimal(0)
-                * (offseter_deposited_of.to_big_decimal(0)
-                    + yielder_deposited_of.to_big_decimal(0)
+                * (customer_farm.offseter_deposited.inner().to_big_decimal(0)
+                    + customer_farm.yielder_deposited.inner().to_big_decimal(0)
                     + value_of.to_big_decimal(0))
                 / project_value.to_big_decimal(0),
         )
         .into();
         self.carbon_credits.to_be_generated = Mass::<BigDecimal>::from_blockchain(
             (project.final_absorption().to_big_decimal(0) - current_absorption.to_big_decimal(0))
-                * ((offseter_deposited_of.to_big_decimal(0)
-                    + yielder_deposited_of.to_big_decimal(0)
+                * ((customer_farm.offseter_deposited.inner().to_big_decimal(0)
+                    + customer_farm.yielder_deposited.inner().to_big_decimal(0)
                     + value_of.to_big_decimal(0))
                     / project_value.to_big_decimal(0)),
         )
@@ -435,29 +432,32 @@ impl CustomerDetailsProjectData {
                 project.payment_symbol.clone(),
             )
             .into(),
-            total: Erc20::from_blockchain(
-                released_of,
-                project.payment_decimals,
-                project.payment_symbol.clone(),
-            )
-            .into(),
+            total: customer_farm.yielder_claimed.clone().into(),
         };
         self.carbon_credits.offset = PoolLiquidity {
             available: Mass::<U256>::from_blockchain(claimable_of, project.ton_equivalent).into(),
-            total: Mass::<U256>::from_blockchain(claimed_of, project.ton_equivalent).into(),
+            total: customer_farm.offseter_claimed.into(),
         };
         self.carbon_credits.min_to_claim =
             Mass::<BigDecimal>::from_blockchain(min_to_claim.to_big_decimal(0)).into();
 
         self.allocation.total = SlotValue::from_blockchain(
-            *value_of + (yielder_deposited_of + offseter_deposited_of),
+            *value_of
+                + (customer_farm.yielder_deposited.inner()
+                    + customer_farm.offseter_deposited.inner()),
             project.value_decimals,
         )
         .into();
-        self.allocation.r#yield =
-            SlotValue::from_blockchain(yielder_deposited_of, project.value_decimals).into();
-        self.allocation.offseted =
-            SlotValue::from_blockchain(offseter_deposited_of, project.value_decimals).into();
+        self.allocation.r#yield = SlotValue::from_blockchain(
+            customer_farm.yielder_deposited.inner(),
+            project.value_decimals,
+        )
+        .into();
+        self.allocation.offseted = SlotValue::from_blockchain(
+            customer_farm.offseter_deposited.inner(),
+            project.value_decimals,
+        )
+        .into();
         self.allocation.undeposited =
             SlotValue::from_blockchain(*value_of, project.value_decimals).into();
         self.allocation.tokens = customer_tokens
@@ -489,5 +489,70 @@ impl CustomerDetailsProjectData {
 
     pub fn build(&self) -> Self {
         self.clone()
+    }
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct CustomerFarm {
+    // Mass<U256>
+    pub offseter_claimed: Mass<U256>,
+    // SlotValue
+    pub offseter_deposited: SlotValue,
+    // Erc20
+    pub yielder_claimed: Erc20,
+    // SlotValue
+    pub yielder_deposited: SlotValue,
+}
+
+impl From<(Vec<tokio_postgres::Row>, U256, U256, U256, String)> for CustomerFarm {
+    fn from(value: (Vec<tokio_postgres::Row>, U256, U256, U256, String)) -> Self {
+        let res = value.0;
+        let payment_decimals = value.1;
+        let value_decimals = value.2;
+        let ton_equivalent = value.3;
+        let symbol = value.4;
+
+        let mut val = Self {
+            offseter_claimed: Mass::<U256>::from_blockchain(U256::zero(), ton_equivalent),
+            offseter_deposited: SlotValue::from_blockchain(U256::zero(), value_decimals.clone()),
+            yielder_claimed: Erc20::from_blockchain(U256::zero(), payment_decimals, symbol),
+            yielder_deposited: SlotValue::from_blockchain(U256::zero(), value_decimals),
+        };
+
+        for i in res {
+            let item: CustomerFarmItem = i.into();
+            match item.farm_type {
+                FarmType::Enum => panic!("should not match this enum case"),
+                FarmType::Yield => match item.action_type {
+                    ActionType::Enum => panic!("should not match this enum case"),
+                    ActionType::Deposit => val.yielder_deposited += item.value,
+                    ActionType::Withdraw => val.yielder_deposited -= item.value,
+                    ActionType::Claim => val.yielder_claimed += item.value,
+                },
+                FarmType::Offset => match item.action_type {
+                    ActionType::Enum => panic!("should not match this enum case"),
+                    ActionType::Deposit => val.offseter_deposited += item.value,
+                    ActionType::Withdraw => val.offseter_deposited -= item.value,
+                    ActionType::Claim => val.offseter_claimed += item.value,
+                },
+            }
+        }
+
+        val
+    }
+}
+
+struct CustomerFarmItem {
+    value: U256,
+    farm_type: FarmType,
+    action_type: ActionType,
+}
+impl From<tokio_postgres::Row> for CustomerFarmItem {
+    fn from(value: tokio_postgres::Row) -> Self {
+        Self {
+            value: value.get(1),
+            farm_type: value.get(2),
+            action_type: value.get(3),
+        }
     }
 }

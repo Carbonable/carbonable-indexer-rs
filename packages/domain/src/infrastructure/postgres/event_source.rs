@@ -1,6 +1,6 @@
 use deadpool_postgres::Transaction;
 use deadpool_postgres::{GenericClient, Object, Pool};
-use sea_query::{Expr, Func, PostgresQueryBuilder, Query};
+use sea_query::{Expr, Func, Iden, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use serde_json::json;
 use time::OffsetDateTime;
@@ -16,9 +16,17 @@ use crate::domain::{
 use std::sync::Arc;
 
 use super::entity::{
-    EventStoreIden, ProjectIden, ProvisionIden, Snapshot, SnapshotIden, YielderIden,
+    ActionType, CustomerFarmIden, EventStoreIden, FarmType, OffseterIden, ProjectIden,
+    ProvisionIden, Snapshot, SnapshotIden, YielderIden,
 };
 use super::{entity::CustomerTokenIden, PostgresError};
+
+pub struct PgDecodeFn;
+impl Iden for PgDecodeFn {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        write!(s, "decode").unwrap();
+    }
+}
 
 #[derive(Debug)]
 pub struct PostgresStorageClientPool {
@@ -116,7 +124,7 @@ pub async fn create_token_for_customer<'a>(
             id.into(),
             to.into(),
             contract_address.into(),
-            (<U256 as Into<sea_query::SimpleExpr>>::into(*token_id)),
+            token_id.into(),
         ])?
         .build_postgres(PostgresQueryBuilder);
 
@@ -226,22 +234,35 @@ pub async fn update_token_value<'a>(
     tx: &Transaction<'a>,
     contract_address: &str,
     to_token_id: &U256,
-    value: &U256,
+    value: U256,
 ) -> Result<(), PostgresError> {
-    let (sql, values) = Query::update()
-        .table(CustomerTokenIden::Table)
-        .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*to_token_id))
-        .and_where(Expr::col(CustomerTokenIden::ProjectAddress).eq(contract_address))
-        .values([
-            (CustomerTokenIden::TokenId, to_token_id.into()),
-            (CustomerTokenIden::Value, value.into()),
-        ])
-        .build_postgres(PostgresQueryBuilder);
+    match tx.query_one(
+        r#"SELECT "customer_token"."value" FROM "customer_token" WHERE "token_id" = decode($1, $2) AND "project_address" = $3"#
 
-    match tx.execute(sql.as_str(), &values.as_params()).await {
+        , &[&to_token_id.to_string(), &"hex".to_string(), &contract_address.to_string()]).await {
         Ok(res) => {
-            debug!("project.transfer_value.update: {:#?}", res);
-            Ok(())
+            let val: Option<U256> = res.get(0);
+            let new_value = match val {
+                Some(v) => v + value,
+                None => U256::zero() + value,
+            };
+
+            match tx.execute(
+                r#"UPDATE "customer_token" set "value" = decode($1,$2) WHERE "token_id" = decode($3,$4) AND "project_address" = $5"#
+                , &[&new_value.to_string(), &"hex".to_string(), &to_token_id.to_string(), &"hex".to_string(), &contract_address.to_owned()]).await {
+                Ok(res) => {
+                    debug!("project.transfer_value.update: {:#?}", res);
+                    Ok(())
+                }
+                Err(e) => {
+                    error!(
+                        "project.transfer_value.update: Failed to update value {:#?}",
+                        e
+                    );
+
+                    Err(PostgresError::from(e))
+                }
+            }
         }
         Err(e) => {
             error!("project.transfer_value.update: {:#?}", e);
@@ -254,31 +275,21 @@ pub async fn decrease_token_value<'a>(
     tx: &Transaction<'a>,
     contract_address: &str,
     token_id: &U256,
-    value: &U256,
+    value: U256,
 ) -> Result<(), PostgresError> {
-    let (q, values) = Query::select()
-        .from(CustomerTokenIden::Table)
-        .column((CustomerTokenIden::Table, CustomerTokenIden::Value))
-        .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*token_id))
-        .and_where(Expr::col(CustomerTokenIden::ProjectAddress).eq(contract_address))
-        .build_postgres(PostgresQueryBuilder);
+    match tx.query_one(
+        r#"SELECT "customer_token"."value" FROM "customer_token" WHERE "token_id" = decode($1, $2) AND "project_address" = $3"#
+        , &[&token_id.to_string(), &"hex".to_string(), &contract_address.to_string()]).await {
+        Ok(r) => {
+            let old_value: U256 = r.get(0);
+            let mut new_value = U256::zero();
+            if old_value > value {
+                new_value = old_value - value;
+            }
 
-    match tx.query_opt(q.as_str(), &values.as_params()).await {
-        Ok(Some(r)) => {
-            let old_value = r.get::<usize, U256>(0);
-            let new_value = old_value - *value;
-
-            let (sql, values) = Query::update()
-                .table(CustomerTokenIden::Table)
-                .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*token_id))
-                .and_where(Expr::col(CustomerTokenIden::ProjectAddress).eq(contract_address))
-                .values([
-                    (CustomerTokenIden::TokenId, token_id.into()),
-                    (CustomerTokenIden::Value, new_value.into()),
-                ])
-                .build_postgres(PostgresQueryBuilder);
-
-            match tx.execute(sql.as_str(), &values.as_params()).await {
+            match tx.execute(
+                r#"UPDATE "customer_token" set "value" = decode($1,$2) WHERE "token_id" = decode($3,$4) AND "project_address" = $5"#
+                , &[&new_value.to_string(), &"hex".to_string(), &token_id.to_string(), &"hex".to_string(), &contract_address.to_string()]).await {
                 Ok(res) => {
                     debug!("project.transfer_value.decrease_token_value: {:#?}", res);
                     Ok(())
@@ -289,13 +300,11 @@ pub async fn decrease_token_value<'a>(
                 }
             }
         }
-        Ok(None) => {
-            debug!("No customer_token to update");
-            Ok(())
-        }
         Err(e) => {
             error!("project.transfer_value.decrease_token_value: {:#?}", e);
-            Err(PostgresError::from(e))
+            // This case might happen because transfer can happen on our own contracts (yielder
+            // & offseter)
+            Ok(())
         }
     }
 }
@@ -513,6 +522,117 @@ pub async fn update_project_project_value<'a>(
         Err(e) => {
             error!("project.project_value.error : {:#?}", e);
             Err(PostgresError::TokioPostgresError(e))
+        }
+    }
+}
+
+/// Append customer action on farms
+/// * tx: [`deadpool_postgres::Object`]
+/// * customer_address: [`&str`]
+/// * project_address: [`&str`]
+/// * slot: [`&U256`]
+/// * value: [`&U256`]
+/// * farm_type: [`FarmType`]
+/// * action_type: [`ActionType`]
+///
+pub async fn append_customer_action<'a>(
+    tx: &Transaction<'a>,
+    event_id: &str,
+    event_timestamp: OffsetDateTime,
+    customer_address: &str,
+    project_address: &str,
+    slot: &U256,
+    value: &U256,
+    farm_type: FarmType,
+    action_type: ActionType,
+) -> Result<(), PostgresError> {
+    let id = Uuid::new_v4();
+    let (sql, values) = Query::insert()
+        .into_table(CustomerFarmIden::Table)
+        .columns([
+            CustomerFarmIden::Id,
+            CustomerFarmIden::CustomerAddress,
+            CustomerFarmIden::ProjectAddress,
+            CustomerFarmIden::Slot,
+            CustomerFarmIden::Value,
+            CustomerFarmIden::FarmType,
+            CustomerFarmIden::ActionType,
+            CustomerFarmIden::EventId,
+            CustomerFarmIden::EventTimestamp,
+        ])
+        .values([
+            id.into(),
+            customer_address.into(),
+            project_address.into(),
+            slot.into(),
+            value.into(),
+            sea_query::Value::String(Some(Box::new(Iden::to_string(&farm_type)))).into(),
+            sea_query::Value::String(Some(Box::new(Iden::to_string(&action_type)))).into(),
+            event_id.into(),
+            event_timestamp.into(),
+        ])?
+        .build_postgres(PostgresQueryBuilder);
+
+    match tx.execute(&sql, &values.as_params()).await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            error!("customer_farm.{farm_type}.{action_type}.error : {:#?}", e);
+            Err(PostgresError::TokioPostgresError(e))
+        }
+    }
+}
+
+/// Find related project data for given contract
+/// * tx: [`deadpool_postgres::Object`]
+/// * addrses: [`&str`]
+/// * farm_type: [`FarmType`]
+///
+pub async fn find_related_project_address_and_slot<'a>(
+    tx: &Transaction<'a>,
+    address: &str,
+    farm_type: FarmType,
+) -> Result<(String, U256), PostgresError> {
+    match farm_type {
+        FarmType::Enum => panic!("Should not use enum as a value"),
+        FarmType::Yield => {
+            let (sql, values) = Query::select()
+                .columns([
+                    (ProjectIden::Table, ProjectIden::Address),
+                    (ProjectIden::Table, ProjectIden::Slot),
+                ])
+                .from(ProjectIden::Table)
+                .inner_join(
+                    YielderIden::Table,
+                    Expr::col((YielderIden::Table, YielderIden::ProjectId))
+                        .equals((ProjectIden::Table, ProjectIden::Id)),
+                )
+                .and_where(Expr::col((YielderIden::Table, YielderIden::Address)).eq(address))
+                .build_postgres(PostgresQueryBuilder);
+
+            match tx.query_one(sql.as_str(), &values.as_params()).await {
+                Ok(res) => Ok((res.get(0), res.get(1))),
+                Err(e) => Err(PostgresError::TokioPostgresError(e)),
+            }
+        }
+        FarmType::Offset => {
+            let (sql, values) = Query::select()
+                .columns([
+                    (ProjectIden::Table, ProjectIden::Address),
+                    (ProjectIden::Table, ProjectIden::Slot),
+                ])
+                .from(ProjectIden::Table)
+                .inner_join(
+                    OffseterIden::Table,
+                    Expr::col((OffseterIden::Table, OffseterIden::ProjectId))
+                        .equals((ProjectIden::Table, ProjectIden::Id)),
+                )
+                .and_where(Expr::col((OffseterIden::Table, OffseterIden::Address)).eq(address))
+                .build_postgres(PostgresQueryBuilder);
+
+            match tx.query_one(sql.as_str(), &values.as_params()).await {
+                Ok(res) => Ok((res.get(0), res.get(1))),
+                Err(e) => Err(PostgresError::TokioPostgresError(e)),
+            }
         }
     }
 }

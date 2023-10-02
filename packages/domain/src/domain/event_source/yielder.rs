@@ -11,9 +11,10 @@ use crate::{
     domain::crypto::U256,
     infrastructure::{
         postgres::{
-            entity::Snapshot,
+            entity::{ActionType, FarmType, Snapshot},
             event_source::{
-                add_provision_to_yielder, add_snapshot_to_yielder, get_yielder_id_from_address,
+                add_provision_to_yielder, add_snapshot_to_yielder, append_customer_action,
+                find_related_project_address_and_slot, get_yielder_id_from_address,
             },
         },
         starknet::model::felt_to_offset_datetime,
@@ -21,7 +22,8 @@ use crate::{
 };
 
 use super::{
-    event_bus::Consumer, get_event, to_filters, DomainError, DomainEvent, Event, Filterable,
+    event_bus::Consumer, get_event, to_filters, BlockMetadata, DomainError, DomainEvent, Event,
+    Filterable,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,15 +113,42 @@ impl YielderClaimEventConsumer {
 #[async_trait::async_trait]
 impl Consumer<Transaction<'_>> for YielderClaimEventConsumer {
     fn can_consume(&self, event: &Event) -> bool {
-        matches!(event, Event::Yielder(YielderEvents::Deposit))
+        matches!(event, Event::Yielder(YielderEvents::Claim))
     }
 
     async fn consume(
         &self,
-        _event: &DomainEvent,
-        _txn: &mut Transaction,
+        event: &DomainEvent,
+        metadata: &BlockMetadata,
+        txn: &mut Transaction,
     ) -> Result<(), DomainError> {
-        // event not handled at the moment but it will be stored in database later on.
+        let from_address = event
+            .metadata
+            .get("from_address")
+            .expect("should have from_address");
+        let (project_address, slot) =
+            find_related_project_address_and_slot(txn, &from_address, FarmType::Yield).await?;
+        let customer_address = event
+            .payload
+            .get("0")
+            .expect("should have customer_address");
+        let value = U256::from(
+            FieldElement::from_hex(event.payload.get("1").expect("should have value")).unwrap(),
+        );
+
+        append_customer_action(
+            txn,
+            event.id.as_str(),
+            metadata.timestamp,
+            customer_address,
+            &project_address,
+            &slot,
+            &value,
+            FarmType::Yield,
+            ActionType::Claim,
+        )
+        .await?;
+
         Ok(())
     }
 }
@@ -141,10 +170,37 @@ impl Consumer<Transaction<'_>> for YielderDepositEventConsumer {
 
     async fn consume(
         &self,
-        _event: &DomainEvent,
-        _txn: &mut Transaction,
+        event: &DomainEvent,
+        metadata: &BlockMetadata,
+        txn: &mut Transaction,
     ) -> Result<(), DomainError> {
-        // event not handled at the moment but it will be stored in database later on.
+        let from_address = event
+            .metadata
+            .get("from_address")
+            .expect("should have from_address");
+        let (project_address, slot) =
+            find_related_project_address_and_slot(txn, &from_address, FarmType::Yield).await?;
+        let customer_address = event
+            .payload
+            .get("0")
+            .expect("should have customer_address");
+        let value = U256::from(
+            FieldElement::from_hex(event.payload.get("1").expect("should have value")).unwrap(),
+        );
+
+        append_customer_action(
+            txn,
+            event.id.as_str(),
+            metadata.timestamp,
+            customer_address,
+            &project_address,
+            &slot,
+            &value,
+            FarmType::Yield,
+            ActionType::Deposit,
+        )
+        .await?;
+
         Ok(())
     }
 }
@@ -164,7 +220,12 @@ impl Consumer<Transaction<'_>> for YielderProvisionEventConsumer {
         matches!(event, Event::Yielder(YielderEvents::Provision))
     }
 
-    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
+    async fn consume(
+        &self,
+        event: &DomainEvent,
+        _metadata: &BlockMetadata,
+        txn: &mut Transaction,
+    ) -> Result<(), DomainError> {
         let yielder_address = event
             .metadata
             .get("from_address")
@@ -203,7 +264,12 @@ impl Consumer<Transaction<'_>> for YielderSnapshotEventConsumer {
         matches!(event, Event::Yielder(YielderEvents::Snapshot))
     }
 
-    async fn consume(&self, event: &DomainEvent, txn: &mut Transaction) -> Result<(), DomainError> {
+    async fn consume(
+        &self,
+        event: &DomainEvent,
+        _metadata: &BlockMetadata,
+        txn: &mut Transaction,
+    ) -> Result<(), DomainError> {
         let yielder_address = event
             .metadata
             .get("from_address")
@@ -324,10 +390,37 @@ impl Consumer<Transaction<'_>> for YielderWithdrawEventConsumer {
 
     async fn consume(
         &self,
-        _event: &DomainEvent,
-        _txn: &mut Transaction,
+        event: &DomainEvent,
+        metadata: &BlockMetadata,
+        txn: &mut Transaction,
     ) -> Result<(), DomainError> {
-        // event not handled at the moment but it will be stored in database later on.
+        let from_address = event
+            .metadata
+            .get("from_address")
+            .expect("should have from_address");
+        let (project_address, slot) =
+            find_related_project_address_and_slot(txn, &from_address, FarmType::Yield).await?;
+        let customer_address = event
+            .payload
+            .get("0")
+            .expect("should have customer_address");
+        let value = U256::from(
+            FieldElement::from_hex(event.payload.get("1").expect("should have value")).unwrap(),
+        );
+
+        append_customer_action(
+            txn,
+            event.id.as_str(),
+            metadata.timestamp,
+            &customer_address,
+            &project_address,
+            &slot,
+            &value,
+            FarmType::Yield,
+            ActionType::Withdraw,
+        )
+        .await?;
+
         Ok(())
     }
 }
