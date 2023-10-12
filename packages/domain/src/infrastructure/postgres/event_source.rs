@@ -172,15 +172,9 @@ pub async fn update_token_owner<'a>(
     to: &str,
     token_id: &U256,
 ) -> Result<(), PostgresError> {
-    let (sql, values) = Query::update()
-        .table(CustomerTokenIden::Table)
-        .and_where(Expr::col(CustomerTokenIden::Address).eq(from))
-        .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*token_id))
-        .and_where(Expr::col(CustomerTokenIden::ProjectAddress).eq(contract_address))
-        .values([(CustomerTokenIden::Address, to.into())])
-        .build_postgres(PostgresQueryBuilder);
-
-    match tx.execute(sql.as_str(), &values.as_params()).await {
+    match tx.execute(
+        r#"UPDATE "customer_token" SET "address" = $1 WHERE "token_id" = decode($2, $3) AND "project_address" = $4 AND "address" = $5"#
+        , &[&to.to_string(), &token_id.to_string(), &"hex".to_string(), &contract_address.to_string(), &from.to_string()]).await {
         Ok(res) => {
             debug!("project.transfer.update: {:#?}", res);
             Ok(())
@@ -255,7 +249,6 @@ pub async fn update_token_value<'a>(
 ) -> Result<(), PostgresError> {
     match tx.query_one(
         r#"SELECT "customer_token"."value" FROM "customer_token" WHERE "token_id" = decode($1, $2) AND "project_address" = $3"#
-
         , &[&to_token_id.to_string(), &"hex".to_string(), &contract_address.to_string()]).await {
         Ok(res) => {
             let val: Option<U256> = res.get(0);
@@ -282,7 +275,7 @@ pub async fn update_token_value<'a>(
             }
         }
         Err(e) => {
-            error!("project.transfer_value.update: {:#?}", e);
+            error!("project.transfer_value.update: select token to update {:#?}", e);
             Err(PostgresError::from(e))
         }
     }
@@ -312,7 +305,7 @@ pub async fn decrease_token_value<'a>(
                     Ok(())
                 }
                 Err(e) => {
-                    error!("project.transfer_value.update: {:#?}", e);
+                    error!("project.transfer_value.update: decreate_token_value {:#?}", e);
                     Err(PostgresError::from(e))
                 }
             }
@@ -339,20 +332,15 @@ pub async fn update_token_slot<'a>(
     token_id: &U256,
     slot: &U256,
 ) -> Result<(), PostgresError> {
-    let (sql, values) = Query::update()
-        .table(CustomerTokenIden::Table)
-        .and_where(Expr::col(CustomerTokenIden::TokenId).eq(*token_id))
-        .and_where(Expr::col(CustomerTokenIden::ProjectAddress).eq(contract_address))
-        .values([(CustomerTokenIden::Slot, slot.into())])
-        .build_postgres(PostgresQueryBuilder);
-
-    match tx.execute(sql.as_str(), &values.as_params()).await {
+    match tx.execute(
+        r#"UPDATE "customer_token" SET "slot" = decode($1,$2) WHERE "token_id" = decode($3, $4) AND "project_address" = $5"#
+        , &[&slot.to_string(), &"hex".to_string(), &token_id.to_string(), &"hex".to_string(), &contract_address.to_string()]).await {
         Ok(res) => {
-            debug!("project.transfer_value.update: {:#?}", res);
+            debug!("project.transfer_value.update: update_token_slot {:#?}", res);
             Ok(())
         }
         Err(e) => {
-            error!("project.transfer_value.update: {:#?}", e);
+            error!("project.transfer_value.update: update_token_slot {:#?}", e);
             Err(PostgresError::from(e))
         }
     }

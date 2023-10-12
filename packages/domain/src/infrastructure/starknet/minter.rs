@@ -76,7 +76,6 @@ impl StarknetModel<HashMap<String, StarknetValue>> for MinterModel<Erc3525> {
                 "get_min_value_per_tx",
                 "get_reserved_value",
                 "get_unit_price",
-                "get_max_value",
                 "get_whitelist_merkle_root",
                 "get_carbonable_project_slot",
                 "is_sold_out",

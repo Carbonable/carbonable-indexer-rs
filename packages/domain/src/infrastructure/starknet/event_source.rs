@@ -52,6 +52,11 @@ impl DomainEvent {
             .clone()
             .expect("from address is required");
         let key = event.keys.first().expect("key should exist");
+        if 0 == event.data.len() {
+            event.keys.iter().skip(1).enumerate().for_each(|(i, data)| {
+                payload.insert(i.to_string(), data.to_string());
+            });
+        }
 
         // Will panic if event is none. Event should be extracted out of application filters
         let mut event = None;

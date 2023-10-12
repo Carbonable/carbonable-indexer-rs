@@ -149,20 +149,20 @@ mod tests {
         ensure_starknet_wallet(&mut wallet);
         let expected = "0x007a108d65e75742c7a0d149e97622c27ad05dec93fd5e952f1d53424128a9ee";
 
-        assert_eq!(expected.to_string(), wallet);
+        assert_eq!(expected.to_owned(), wallet);
 
         let mut wallet =
             String::from("0x63675fA1ECEa10063722E61557ED7f49ED2503D6Cdd74F4B31E9770B473650C");
         ensure_starknet_wallet(&mut wallet);
-        let expected = "0x063675fA1ECEa10063722E61557ED7f49ED2503D6Cdd74F4B31E9770B473650C";
+        let expected = "0x063675fa1ecea10063722e61557ed7f49ed2503d6cdd74f4b31e9770b473650c";
 
-        assert_eq!(expected.to_string(), wallet);
+        assert_eq!(expected.to_owned(), wallet);
 
         let mut wallet =
             String::from("0x8d65e75742c7a0d149e97622c27ad05dec93fd5e952f1d53424128a9ee");
         ensure_starknet_wallet(&mut wallet);
         let expected = "0x0000008d65e75742c7a0d149e97622c27ad05dec93fd5e952f1d53424128a9ee";
 
-        assert_eq!(expected.to_string(), wallet);
+        assert_eq!(expected.to_owned(), wallet);
     }
 }

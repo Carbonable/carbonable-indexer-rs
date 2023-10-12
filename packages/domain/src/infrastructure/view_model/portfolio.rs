@@ -87,7 +87,7 @@ pub enum ProjectWithTokens {
         #[serde(skip_serializing)]
         total_amount: U256,
         abi: PortfolioAbi,
-        image: String,
+        image: serde_json::Value,
     },
     Erc3525 {
         id: Ulid,
@@ -99,7 +99,7 @@ pub enum ProjectWithTokens {
         total_amount: U256,
         total_deposited_value: HumanComprehensibleU256<U256>,
         abi: PortfolioAbi,
-        image: String,
+        image: serde_json::Value,
     },
 }
 

@@ -49,6 +49,8 @@ pub enum ModelError {
     InvalidDataSet(String),
     #[error("failed to fetch customer tokens from db")]
     FailedToFetchCustomerTokens,
+    #[error("failed to convert wallet address to felt {0}")]
+    InvalidWalletAddress(String),
 }
 
 #[async_trait::async_trait]

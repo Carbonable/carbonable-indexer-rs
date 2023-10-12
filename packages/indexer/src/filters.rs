@@ -4,8 +4,7 @@ use apibara_core::{
 };
 use apibara_sdk::Configuration;
 use carbonable_domain::{
-    domain::event_source::Filterable,
-    infrastructure::{app::Args, seed::read_data_content},
+    domain::event_source::Filterable, infrastructure::seed::read_data_content,
 };
 
 use crate::IndexerError;

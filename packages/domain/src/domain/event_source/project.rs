@@ -198,7 +198,10 @@ impl Consumer<Transaction<'_>> for ProjectTransferValueEventConsumer {
 
         match update_token_value(txn, from_address, &to_token_id, value.clone()).await {
             Ok(_) => info!("project.transfer_value.update: success"),
-            Err(e) => error!("project.transfer_value.update: failed {:#?}", e),
+            Err(e) => error!(
+                "project.transfer_value.update: transfer_value_event_consumer {:#?}",
+                e
+            ),
         }
 
         match decrease_token_value(txn, from_address, &from_token_id, value.clone()).await {

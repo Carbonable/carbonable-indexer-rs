@@ -106,17 +106,17 @@ pub async fn load_erc_721_portfolio(
 pub async fn load_erc_3525_portfolio(
     project: &ProjectWithMinterAndPaymentViewModel,
     address: &str,
+    slot: &U256,
     customer_tokens: &[CustomerToken],
 ) -> Result<Vec<Option<Erc3525Token>>, ModelError> {
     let provider = get_starknet_rpc_from_env()?;
     let mut tokens = vec![];
     for token_index in customer_tokens {
-        if token_index.project_address != address {
+        if !(token_index.project_address == address && &token_index.slot == slot) {
             continue;
         }
         let value: U256 =
             get_value_of_token_in_slot(&provider, address, &token_index.token_id).await?;
-        // let value: U256 = StarknetValue::new(data[1].clone()).resolve("u256").into();
 
         tokens.push(Some(Erc3525Token {
             token_id: token_index.token_id,
