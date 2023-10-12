@@ -1,7 +1,7 @@
 use deadpool_postgres::{Object, Pool};
 use sea_query::{PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     domain::{crypto::U256, Ulid},
@@ -90,6 +90,25 @@ pub async fn store_last_handled_event(
         }
     }
 }
+pub async fn get_last_handled_event(client: &Object) -> Option<Ulid> {
+    match client
+        .query_one("SELECT id FROM last_stored_event", &[])
+        .await
+    {
+        Ok(r) => {
+            // little hack here as id in table last_event_store is either an empty string or a Ulid
+            let id: String = r.get(0);
+            if id.is_empty() {
+                return None;
+            }
+            Some(Ulid::from(id))
+        }
+        Err(e) => {
+            error!("{e}");
+            None
+        }
+    }
+}
 
 pub async fn get_last_stored_event_block(client: &Object) -> Result<u64, PostgresError> {
     match client.query_one("SELECT es.block_number from last_stored_event lse INNER JOIN event_store es on es.id = lse.id", &[]).await {
@@ -106,5 +125,7 @@ pub async fn clear_view_models(client: &Object) -> Result<(), PostgresError> {
     let _ = client
         .execute(r#"UPDATE last_stored_event set id = ''"#, &[])
         .await;
+
+    info!("View models cleared...");
     Ok(())
 }

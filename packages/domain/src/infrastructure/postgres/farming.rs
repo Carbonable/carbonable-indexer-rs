@@ -2,16 +2,12 @@ use std::sync::Arc;
 
 use crate::domain::Ulid;
 use deadpool_postgres::Pool;
-use sea_query::{Alias, Expr, Func, JoinType, PostgresQueryBuilder, Query};
+use sea_query::{Alias, Expr, JoinType, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
 use tracing::error;
 
-use crate::infrastructure::{
-    postgres::entity::CustomerFarmIden,
-    view_model::farming::{
-        CompleteFarmingData, CustomerFarm, CustomerGlobalDataForComputation,
-        FarmingProjectsViewModel,
-    },
+use crate::infrastructure::view_model::farming::{
+    CompleteFarmingData, CustomerFarm, CustomerGlobalDataForComputation, FarmingProjectsViewModel,
 };
 
 use super::{
@@ -348,59 +344,29 @@ impl PostgresFarming {
         slot: &U256,
     ) -> Result<CustomerFarm, PostgresError> {
         let client = self.db_client_pool.clone().get().await?;
-
-        let (sql, values) = Query::select()
-            .columns([
-                (ProjectIden::Table, ProjectIden::ValueDecimals),
-                (ProjectIden::Table, ProjectIden::TonEquivalent),
-            ])
-            .columns([
-                (PaymentIden::Table, PaymentIden::Decimals),
-                (PaymentIden::Table, PaymentIden::Symbol),
-            ])
-            .from(ProjectIden::Table)
-            .inner_join(
-                MinterIden::Table,
-                Expr::col((MinterIden::Table, MinterIden::ProjectId))
-                    .equals((ProjectIden::Table, ProjectIden::Id)),
+        match client
+            .query_one(
+                r#"SELECT pr.value_decimals, pr.ton_equivalent, pa.decimals, pa.symbol 
+            FROM project pr 
+            INNER JOIN minter m ON m.project_id = pr.id 
+            INNER JOIN payment pa on pa.id = m.payment_id
+            WHERE pr.address = lower($1) AND pr.slot = decode($2,$3)"#,
+                &[
+                    &project_address.to_string(),
+                    &slot.to_string(),
+                    &"hex".to_string(),
+                ],
             )
-            .inner_join(
-                PaymentIden::Table,
-                Expr::col((MinterIden::Table, MinterIden::PaymentId))
-                    .equals((PaymentIden::Table, PaymentIden::Id)),
-            )
-            .and_where(Expr::col((ProjectIden::Table, ProjectIden::Address)).eq(project_address))
-            .build_postgres(PostgresQueryBuilder);
-
-        match client.query_one(sql.as_str(), &values.as_params()).await {
+            .await
+        {
             Ok(res) => {
                 let value_decimals: U256 = res.get(0);
                 let ton_equivalent: U256 = res.get(1);
                 let payment_decimals: U256 = res.get(2);
                 let symbol: String = res.get(3);
-
-                let (sql, values) = Query::select()
-                    .columns([
-                        (CustomerFarmIden::Table, CustomerFarmIden::Id),
-                        (CustomerFarmIden::Table, CustomerFarmIden::Value),
-                        (CustomerFarmIden::Table, CustomerFarmIden::FarmType),
-                        (CustomerFarmIden::Table, CustomerFarmIden::ActionType),
-                    ])
-                    .from(CustomerFarmIden::Table)
-                    .and_where(
-                        Expr::col((CustomerFarmIden::Table, CustomerFarmIden::CustomerAddress))
-                            .eq(Func::lower(customer_address)),
-                    )
-                    .and_where(
-                        Expr::col((CustomerFarmIden::Table, CustomerFarmIden::ProjectAddress))
-                            .eq(project_address),
-                    )
-                    .and_where(
-                        Expr::col((CustomerFarmIden::Table, CustomerFarmIden::Slot)).eq(slot),
-                    )
-                    .build_postgres(PostgresQueryBuilder);
-
-                match client.query(sql.as_str(), &values.as_params()).await {
+                match client.query(
+                    r#"SELECT id, value, farm_type, action_type FROM customer_farm WHERE customer_address = lower($1) AND project_address = lower($2) AND slot = decode($3,$4)"#,
+                    &[&customer_address.to_string(), &project_address.to_string(), &slot.to_string(), &"hex".to_string()]).await {
                     Ok(res) => Ok(CustomerFarm::from((
                         res,
                         payment_decimals,

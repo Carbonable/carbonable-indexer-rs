@@ -140,11 +140,6 @@ impl PostgresMinter<Erc3525> {
             .expect("should have getUnitPrice")
             .resolve("u256")
             .into();
-        let max_value: crypto_bigint::U256 = data
-            .get_mut("get_max_value")
-            .expect("should have getMaxValue")
-            .resolve("u256")
-            .into();
         let (sql, values) = Query::insert()
             .into_table(MinterIden::Table)
             .columns([
@@ -157,7 +152,6 @@ impl PostgresMinter<Erc3525> {
                 MinterIden::MaxValuePerTx,
                 MinterIden::MinValuePerTx,
                 MinterIden::UnitPrice,
-                MinterIden::TotalValue, // TODO: change to MaxValue
                 MinterIden::WhitelistMerkleRoot,
                 MinterIden::SoldOut,
                 MinterIden::ErcImplementation,
@@ -189,7 +183,6 @@ impl PostgresMinter<Erc3525> {
                     .resolve("u256")
                     .into(),
                 U256::from(unit_price).into(),
-                U256::from(max_value).into(),
                 data.get_mut("get_whitelist_merkle_root")
                     .expect("should have getWhitelistMerkleRoot")
                     .resolve("u256")

@@ -354,6 +354,7 @@ impl PostgresProject<Erc721> {
                 (ProjectIden::Table, ProjectIden::Slug),
                 (ProjectIden::Table, ProjectIden::Setup),
                 (ProjectIden::Table, ProjectIden::ValueDecimals),
+                (ProjectIden::Table, ProjectIden::Slot),
             ])
             .columns([
                 (UriIden::Table, UriIden::Id),
@@ -410,6 +411,7 @@ impl PostgresProject<Erc721> {
                 (ProjectIden::Table, ProjectIden::Slug),
                 (ProjectIden::Table, ProjectIden::Setup),
                 (ProjectIden::Table, ProjectIden::ValueDecimals),
+                (ProjectIden::Table, ProjectIden::Slot),
             ])
             .columns([
                 (UriIden::Table, UriIden::Id),
@@ -438,7 +440,6 @@ impl PostgresProject<Erc721> {
                 (MinterIden::Table, MinterIden::MinValuePerTx),
                 (MinterIden::Table, MinterIden::MaxValuePerTx),
                 (MinterIden::Table, MinterIden::ReservedSupply),
-                (MinterIden::Table, MinterIden::TotalValue),
             ])
             .column((PaymentIden::Table, PaymentIden::Address))
             .inner_join(

@@ -34,6 +34,8 @@ pub enum ApiError {
     PoolError(#[from] PoolError),
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
+    #[error("failed to acquire sequencer connection")]
+    FailedToAcquireSequencerConnection,
 }
 
 impl ResponseError for ApiError {}

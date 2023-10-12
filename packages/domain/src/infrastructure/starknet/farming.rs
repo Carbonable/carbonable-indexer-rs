@@ -228,16 +228,20 @@ pub async fn get_customer_listing_project_data(
     customer_farm: &CustomerFarm,
 ) -> Result<CustomerListingProjectData, ModelError> {
     let provider = Arc::new(get_starknet_rpc_from_env()?);
+    let felt_wallet = match FieldElement::from_hex_be(wallet) {
+        Ok(w) => w,
+        Err(_) => return Err(ModelError::InvalidWalletAddress(wallet.to_owned())),
+    };
     let values = [
         (
             project_data.yielder_address.to_string(),
             "get_claimable_of",
-            vec![FieldElement::from_hex_be(wallet).unwrap()],
+            vec![felt_wallet],
         ),
         (
             project_data.offseter_address.to_string(),
             "get_claimable_of",
-            vec![FieldElement::from_hex_be(wallet).unwrap()],
+            vec![felt_wallet],
         ),
     ];
 

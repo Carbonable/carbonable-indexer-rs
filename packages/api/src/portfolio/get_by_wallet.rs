@@ -27,13 +27,13 @@ use crate::{
     AppDependencies,
 };
 
-async fn aggregate_image_from_slot_uri(slot_uri: &str) -> String {
+async fn aggregate_image_from_slot_uri(slot_uri: &str) -> serde_json::Value {
     let client = Client::new();
     if slot_uri.starts_with("data:application/json") {
         let metadata: serde_json::Value =
             serde_json::from_str(slot_uri.replace("data:application/json,", "").as_str())
                 .expect("failed to parse json");
-        return metadata["image"].to_string();
+        return metadata["image"].clone();
     }
     let uri = slot_uri.replace("\"", "");
     let data: serde_json::Value = client
@@ -44,7 +44,7 @@ async fn aggregate_image_from_slot_uri(slot_uri: &str) -> String {
         .json()
         .await
         .expect("failed to parse json");
-    return data["image"].to_string();
+    return data["image"].clone();
 }
 
 async fn aggregate_721_tokens(
@@ -63,7 +63,7 @@ async fn aggregate_721_tokens(
 
     let image = match &project.slot_uri {
         Some(uri) => aggregate_image_from_slot_uri(&uri.as_str()).await,
-        None => "<deprecated>".to_owned(),
+        None => serde_json::Value::String("<deprecated>".to_owned()),
     };
 
     let project = ProjectWithTokens::Erc721 {
@@ -88,8 +88,13 @@ async fn aggregate_3525_tokens(
     wallet: String,
     customer_tokens: Vec<CustomerToken>,
 ) -> Result<Option<ProjectWithTokens>, ProjectError> {
-    let tokens =
-        load_erc_3525_portfolio(&project, &project.address, &customer_tokens.as_slice()).await?;
+    let tokens = load_erc_3525_portfolio(
+        &project,
+        &project.address,
+        &project.slot.expect("slot is required here"),
+        &customer_tokens.as_slice(),
+    )
+    .await?;
 
     let customer_farm = farming_model
         .get_customer_farm(
@@ -98,17 +103,21 @@ async fn aggregate_3525_tokens(
             &project.slot.expect("slot is required here"),
         )
         .await?;
+
     let total_offseted: U256 = customer_farm.offseter_deposited.inner();
     let total_yielded: U256 = customer_farm.yielder_deposited.inner();
 
     let value = tokens
         .iter()
         .flatten()
-        .fold(U256::zero(), |acc, e| acc + e.value);
+        .fold(U256::zero() + total_yielded + total_offseted, |acc, e| {
+            acc + e.value
+        });
     let total_amount = total_amount(project.unit_price, project.payment_decimals, value);
+
     let image = match &project.slot_uri {
         Some(uri) => aggregate_image_from_slot_uri(&uri.as_str()).await,
-        None => "<deprecated>".to_owned(),
+        None => serde_json::Value::String("<deprecated>".to_owned()),
     };
 
     let project = ProjectWithTokens::Erc3525 {

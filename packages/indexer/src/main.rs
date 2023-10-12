@@ -32,7 +32,7 @@ use carbonable_domain::{
         app::{Cli, Commands},
         postgres::{
             event_store::{
-                batch_events, clear_view_models, get_last_dispatched_block,
+                batch_events, clear_view_models, get_last_dispatched_block, get_last_handled_event,
                 store_last_handled_event,
             },
             get_connection, PostgresModels,
@@ -100,7 +100,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             handle_event_store(db_client_pool.clone()).await
         }
-        _ => panic!("Unknown command"),
     }
 }
 
@@ -240,12 +239,14 @@ async fn handle_indexing(
 }
 
 async fn handle_event_store(db_client_pool: Arc<Pool>) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Starting read of domain events...");
     let event_bus = create_event_bus(db_client_pool.clone());
     let client = db_client_pool.clone().get().await?;
-    let mut key = None;
-    while let batch = batch_events(&client, 10, key).await? {
+    let mut key = get_last_handled_event(&client).await;
+    loop {
+        let batch = batch_events(&client, 10, key).await?;
         if 0 == batch.len() {
-            sleep(Duration::from_secs(5)).await;
+            sleep(Duration::from_secs(1)).await;
             continue;
         }
         for event in batch.as_slice() {
@@ -266,8 +267,6 @@ async fn handle_event_store(db_client_pool: Arc<Pool>) -> Result<(), Box<dyn std
         key = Some(batch.last().unwrap().id.clone());
         let _ = store_last_handled_event(&client, key).await;
     }
-
-    Ok(())
 }
 
 async fn handle_refresh_event_store(
