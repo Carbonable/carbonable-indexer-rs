@@ -221,6 +221,8 @@ pub trait Filterable: Debug {
         for list in contract_addresses {
             for (k, addr) in list.iter() {
                 if keys.contains(&k.as_str()) {
+                    let parts = addr.split("//").collect::<Vec<&str>>();
+                    let addr = parts[0];
                     addresses.push(addr.to_string());
                 }
             }
@@ -252,7 +254,9 @@ pub(crate) fn get_event(
     contract_address: &str,
     event_key: &str,
 ) -> Option<Event> {
-    match filters.entry(contract_address.to_string()) {
+    let parts = contract_address.split("//").collect::<Vec<&str>>();
+    let addr = parts[0];
+    match filters.entry(addr.to_string()) {
         Entry::Occupied(e) => e
             .get()
             .iter()

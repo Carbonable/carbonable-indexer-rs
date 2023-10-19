@@ -88,6 +88,7 @@ pub enum ProjectWithTokens {
         total_amount: U256,
         abi: PortfolioAbi,
         image: serde_json::Value,
+        migrator_address: Option<String>,
     },
     Erc3525 {
         id: Ulid,
@@ -100,6 +101,8 @@ pub enum ProjectWithTokens {
         total_deposited_value: HumanComprehensibleU256<U256>,
         abi: PortfolioAbi,
         image: serde_json::Value,
+        asset_area: Option<String>,
+        asset_carbon_unit: Option<String>,
     },
 }
 

@@ -7,6 +7,7 @@ mod m20230510_153033_add_sale_date;
 mod m20230523_144915_add_forecasted_apr;
 mod m20230601_135331_add_project_value;
 mod m20230927_115912_add_customer_actions;
+mod m20231019_074938_add_project_asset_computations;
 
 pub struct Migrator;
 
@@ -21,6 +22,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20230523_144915_add_forecasted_apr::Migration),
             Box::new(m20230601_135331_add_project_value::Migration),
             Box::new(m20230927_115912_add_customer_actions::Migration),
+            Box::new(m20231019_074938_add_project_asset_computations::Migration),
         ]
     }
 }
