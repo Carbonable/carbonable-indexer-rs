@@ -51,6 +51,8 @@ pub enum ModelError {
     FailedToFetchCustomerTokens,
     #[error("failed to convert wallet address to felt {0}")]
     InvalidWalletAddress(String),
+    #[error("failed to convert {0} to {1}")]
+    TypeConversionError(String, String),
 }
 
 #[async_trait::async_trait]
@@ -93,7 +95,7 @@ pub fn get_call_function(
 }
 
 /// Sync starknet model with some base data
-pub(crate) async fn load_blockchain_data(
+pub async fn load_blockchain_data(
     provider: Arc<JsonRpcClient<HttpTransport>>,
     address: FieldElement,
     selectors: &'static [&str],

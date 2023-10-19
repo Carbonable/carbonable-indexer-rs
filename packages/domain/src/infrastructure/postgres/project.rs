@@ -70,6 +70,7 @@ impl PostgresProject<Erc721> {
                 ProjectIden::ErcImplementation,
                 ProjectIden::ProjectValue,
                 ProjectIden::SlotUri,
+                ProjectIden::MigratorAddress,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
             .build_postgres(PostgresQueryBuilder);
@@ -144,6 +145,7 @@ impl PostgresProject<Erc721> {
                 ProjectIden::ValueDecimals,
                 ProjectIden::ErcImplementation,
                 ProjectIden::ProjectValue,
+                ProjectIden::MigratorAddress,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
             .and_where(Expr::col(ProjectIden::Slot).eq(U256::from(*slot)))
@@ -238,6 +240,7 @@ impl PostgresProject<Erc721> {
         erc_implementation: ErcImplementation,
         implementation_id: Option<Ulid>,
         uri_id: Option<Ulid>,
+        migrator_address: Option<String>,
     ) -> Result<(), PostgresError> {
         let client = self.db_client_pool.get().await?;
         let total_supply_key = match data.get("totalSupply") {
@@ -272,6 +275,7 @@ impl PostgresProject<Erc721> {
                 ProjectIden::ImplementationId,
                 ProjectIden::UriId,
                 ProjectIden::ProjectValue,
+                ProjectIden::MigratorAddress,
             ])
             .values([
                 Ulid::new().into(),
@@ -328,6 +332,7 @@ impl PostgresProject<Erc721> {
                 implementation_id.into(),
                 uri_id.into(),
                 project_value,
+                migrator_address.into(),
             ])?
             .build_postgres(PostgresQueryBuilder);
 
@@ -574,6 +579,7 @@ impl PostgresProject<Erc3525> {
                 ProjectIden::ErcImplementation,
                 ProjectIden::ProjectValue,
                 ProjectIden::SlotUri,
+                ProjectIden::MigratorAddress,
             ])
             .and_where(Expr::col(ProjectIden::Address).eq(address))
             .and_where(Expr::col(ProjectIden::Slot).eq(U256::from(*slot)))

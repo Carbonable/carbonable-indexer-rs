@@ -383,4 +383,45 @@ impl PostgresFarming {
             Err(_) => Ok(CustomerFarm::default()),
         }
     }
+
+    pub async fn get_project_migrator_address(
+        &self,
+        project_address: &str,
+    ) -> Result<String, PostgresError> {
+        let client = self.db_client_pool.clone().get().await?;
+        match client
+            .query_one(
+                r#"SELECT pr.migrator_address FROM project pr WHERE pr.address = lower($1)"#,
+                &[&project_address.to_string()],
+            )
+            .await
+        {
+            Ok(res) => Ok(res.get::<usize, String>(0)),
+            Err(e) => {
+                error!("get_project_migrator_address -> {:#?}", e);
+                Err(PostgresError::TokioPostgresError(e))
+            }
+        }
+    }
+
+    pub async fn get_project_metadata(
+        &self,
+        project_address: &str,
+        slot: &U256,
+    ) -> Result<serde_json::Value, PostgresError> {
+        let client = self.db_client_pool.clone().get().await?;
+        match client
+            .query_one(
+                r#"SELECT u.uri FROM uri u INNER JOIN project pr ON u.id = pr.uri_id WHERE pr.address = lower($1) and pr.slot = decode($2,$3)"#,
+                &[&project_address.to_string(), &slot.to_string(), &"hex".to_string()],
+            )
+            .await
+        {
+            Ok(res) => Ok(serde_json::from_str(&res.get::<usize, String>(0).replace("data:application/json,", "")).unwrap()),
+            Err(e) => {
+                error!("get_project_metadata -> {:#?}", e);
+                Err(PostgresError::TokioPostgresError(e))
+            }
+        }
+    }
 }
