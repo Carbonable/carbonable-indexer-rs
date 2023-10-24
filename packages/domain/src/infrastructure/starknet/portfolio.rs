@@ -24,16 +24,23 @@ pub(crate) async fn get_balance_of(
     address: &str,
     wallet: &str,
 ) -> Result<u64, ModelError> {
-    let response = provider
+    let response = match provider
         .call(
             get_call_function(
                 &FieldElement::from_hex_be(address).unwrap(),
                 "balanceOf",
                 vec![FieldElement::from_hex_be(wallet).unwrap()],
             ),
-            &BlockId::Tag(BlockTag::Latest),
+            &BlockId::Tag(BlockTag::Pending),
         )
-        .await?;
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!("failed to get balanceOf({address},{wallet}) {:?}", e);
+            return Err(ModelError::ProviderError(e));
+        }
+    };
 
     Ok(u64::try_from(response.first().unwrap().to_owned()).unwrap())
 }
@@ -44,7 +51,7 @@ pub(crate) async fn get_token_id(
     wallet: &str,
     index: &u64,
 ) -> Result<U256, ModelError> {
-    let response = provider
+    let response = match provider
         .call(
             get_call_function(
                 &FieldElement::from_hex_be(address).unwrap(),
@@ -55,9 +62,19 @@ pub(crate) async fn get_token_id(
                     FieldElement::ZERO,
                 ],
             ),
-            &BlockId::Tag(BlockTag::Latest),
+            &BlockId::Tag(BlockTag::Pending),
         )
-        .await?;
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(
+                "failed to get tokenOfOwnerByIndex({address},{wallet},{index}) {:?}",
+                e
+            );
+            return Err(ModelError::ProviderError(e));
+        }
+    };
 
     Ok(felt_to_u256(response.first().unwrap().to_owned()))
 }
@@ -67,16 +84,23 @@ pub(crate) async fn get_value_of_token_in_slot(
     address: &str,
     token_id: &U256,
 ) -> Result<U256, ModelError> {
-    let response = provider
+    let response = match provider
         .call(
             get_call_function(
                 &FieldElement::from_hex_be(address).unwrap(),
                 "value_of",
                 vec![u256_to_felt(token_id), FieldElement::ZERO],
             ),
-            &BlockId::Tag(BlockTag::Latest),
+            &BlockId::Tag(BlockTag::Pending),
         )
-        .await?;
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!("failed to get value_of({address},{token_id}): {:?}", e);
+            return Err(ModelError::ProviderError(e));
+        }
+    };
     Ok(felt_to_u256(response.first().unwrap().to_owned()))
 }
 

@@ -10,6 +10,7 @@ pub mod project;
 pub mod uri;
 pub mod yielder;
 
+use reqwest::header::{HeaderMap, HeaderValue, InvalidHeaderValue};
 use starknet::{
     core::types::FieldElement,
     providers::{
@@ -32,8 +33,14 @@ pub enum SequencerError {
     NoEnvProvided,
     #[error("environment variable 'SEQUENCER_DOMAIN' not provided")]
     NoSequencerDomainProvided,
+    #[error("environment variable 'JUNO_API_KEY' not provided")]
+    NoJunoApiKeyProvided,
     #[error(transparent)]
     UrlParseError(#[from] url::ParseError),
+    #[error(transparent)]
+    ReqwestClientError(#[from] reqwest::Error),
+    #[error(transparent)]
+    InvalidHeaderValueError(#[from] InvalidHeaderValue),
 }
 
 pub enum StarknetEnv {
@@ -99,9 +106,19 @@ fn get_starknet_rpc_client(
     env: StarknetEnv,
 ) -> Result<JsonRpcClient<HttpTransport>, SequencerError> {
     let sequencer_domain = get_sequencer_domain(&env)?;
-    Ok(JsonRpcClient::new(HttpTransport::new(Url::parse(
-        &sequencer_domain,
-    )?)))
+    let juno_api_key = match std::env::var("JUNO_API_KEY") {
+        Ok(k) => k,
+        Err(_) => return Err(SequencerError::NoJunoApiKeyProvided),
+    };
+    let mut headers = HeaderMap::new();
+    headers.insert("x-apikey", HeaderValue::from_str(&juno_api_key)?);
+    let client = reqwest::Client::builder()
+        .default_headers(headers)
+        .build()?;
+    Ok(JsonRpcClient::new(HttpTransport::new_with_client(
+        Url::parse(&sequencer_domain)?,
+        client,
+    )))
 }
 
 /// Get sequencer from given [`StarknetEnv`] variable
@@ -126,7 +143,7 @@ pub async fn get_proxy_abi(
     implementation_hash: FieldElement,
 ) -> Result<serde_json::Value, ModelError> {
     let res = provider
-        .get_class_at(&BlockId::Tag(BlockTag::Latest), implementation_hash)
+        .get_class_at(&BlockId::Tag(BlockTag::Pending), implementation_hash)
         .await?;
     match res {
         starknet::providers::jsonrpc::models::ContractClass::Sierra(c) => {

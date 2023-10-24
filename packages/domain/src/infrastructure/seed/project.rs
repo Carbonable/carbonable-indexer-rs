@@ -40,12 +40,8 @@ where
 #[async_trait::async_trait]
 impl Seeder for ProjectSeeder<Erc721> {
     async fn seed(&self, address: String) -> Result<String, DataSeederError> {
-        let parts = address.split("//").collect::<Vec<&str>>();
-        let address = parts[0];
-        let migrator_address = if parts.len() > 1 { parts[1] } else { "" };
-
         let project_model =
-            ProjectModel::<Erc721>::new(FieldElement::from_hex_be(address).unwrap())?;
+            ProjectModel::<Erc721>::new(FieldElement::from_hex_be(&address).unwrap())?;
         let db_models = self.db_models.clone();
         // fetch onchain project data
         let mut data = project_model.load().await?;
@@ -57,11 +53,11 @@ impl Seeder for ProjectSeeder<Erc721> {
         let implementation = find_or_create_implementation(
             db_models.implementation.clone(),
             project_model.provider,
-            address,
+            &address,
         )
         .await?;
         let uri =
-            find_or_create_uri_721(db_models.uri.clone(), address, project_uri.as_str()).await?;
+            find_or_create_uri_721(db_models.uri.clone(), &address, project_uri.as_str()).await?;
 
         let _saved = self
             .db_models
@@ -72,7 +68,7 @@ impl Seeder for ProjectSeeder<Erc721> {
                 ErcImplementation::Erc721,
                 Some(implementation.id),
                 Some(uri.id),
-                Some(migrator_address.to_owned()),
+                None,
             )
             .await?;
         info!("Properly seeded project {}", address);

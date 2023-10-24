@@ -10,6 +10,8 @@ use crate::infrastructure::{
 pub enum ProjectError {
     #[error("invalid erc implementation for project")]
     InvalidErcImplementation,
+    #[error("unit price is not set")]
+    UnitPriceNotSet,
     #[error(transparent)]
     JoinError(#[from] JoinError),
     #[error(transparent)]

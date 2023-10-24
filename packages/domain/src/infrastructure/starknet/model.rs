@@ -110,7 +110,7 @@ pub async fn load_blockchain_data(
             let res = match provider
                 .call(
                     get_call_function(&address, contract_entrypoint, vec![]),
-                    &BlockId::Tag(BlockTag::Latest),
+                    &BlockId::Tag(BlockTag::Pending),
                 )
                 .await
             {
@@ -129,7 +129,10 @@ pub async fn load_blockchain_data(
 
     match futures::future::try_join_all(handles).await {
         Ok(res) => Ok(to_hash_map(res)),
-        Err(e) => Err(e),
+        Err(e) => {
+            tracing::error!("load_blockchain_data // error {:#?}", e);
+            Err(e)
+        }
     }
 }
 /// Get blockchain data with a whole call construction
@@ -151,7 +154,7 @@ pub async fn parallelize_blockchain_rpc_calls(
                         endpoint.as_str(),
                         values.to_vec(),
                     ),
-                    &BlockId::Tag(BlockTag::Latest),
+                    &BlockId::Tag(BlockTag::Pending),
                 )
                 .await
             {
@@ -190,7 +193,7 @@ pub(crate) async fn load_blockchain_slot_data(
                         contract_entrypoint,
                         vec![u256_to_felt(&slot), FieldElement::ZERO],
                     ),
-                    &BlockId::Tag(BlockTag::Latest),
+                    &BlockId::Tag(BlockTag::Pending),
                 )
                 .await;
             Ok((selector.to_string(), StarknetValue::new(res.unwrap())))
