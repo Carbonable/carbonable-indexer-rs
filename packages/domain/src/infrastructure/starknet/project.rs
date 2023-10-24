@@ -61,7 +61,7 @@ impl ProjectModel<Erc3525> {
             .clone()
             .call(
                 get_call_function(&self.address, "slot_count", vec![]),
-                &BlockId::Tag(BlockTag::Latest),
+                &BlockId::Tag(BlockTag::Pending),
             )
             .await?;
         Ok(u64::try_from(res.first().unwrap().to_owned()).unwrap())
@@ -76,7 +76,7 @@ impl ProjectModel<Erc3525> {
                     "slot_by_index",
                     vec![FieldElement::from(index), FieldElement::ZERO],
                 ),
-                &BlockId::Tag(BlockTag::Latest),
+                &BlockId::Tag(BlockTag::Pending),
             )
             .await?;
         Ok(felt_to_u256(*res.first().unwrap()))

@@ -57,13 +57,22 @@ async fn aggregate_721_tokens(
     project: ProjectWithMinterAndPaymentViewModel,
     wallet: String,
 ) -> Result<Option<ProjectWithTokens>, ProjectError> {
-    let tokens = load_erc_721_portfolio(&project, &wallet).await?;
+    let tokens = match load_erc_721_portfolio(&project, &wallet).await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("failed to load 721 portfolio {:#?}", e);
+            return Err(ProjectError::ModelError(e));
+        }
+    };
     if tokens.is_empty() {
         return Ok(None);
     }
+    if project.unit_price.is_none() {
+        return Err(ProjectError::UnitPriceNotSet);
+    }
     let migrator_address = model.get_project_migrator_address(&project.address).await?;
     let total_amount = total_amount(
-        project.unit_price,
+        project.unit_price.unwrap(),
         project.payment_decimals,
         U256::from(tokens.len()),
     );
@@ -96,13 +105,20 @@ async fn aggregate_3525_tokens(
     wallet: String,
     customer_tokens: Vec<CustomerToken>,
 ) -> Result<Option<ProjectWithTokens>, ProjectError> {
-    let tokens = load_erc_3525_portfolio(
+    let tokens = match load_erc_3525_portfolio(
         &project,
         &project.address,
         &project.slot.expect("slot is required here"),
         &customer_tokens.as_slice(),
     )
-    .await?;
+    .await
+    {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("failed to load 3525 portfolio {:#?}", e);
+            return Err(ProjectError::ModelError(e));
+        }
+    };
 
     let customer_farm = farming_model
         .get_customer_farm(
@@ -121,7 +137,7 @@ async fn aggregate_3525_tokens(
         .fold(U256::zero() + total_yielded + total_offseted, |acc, e| {
             acc + e.value
         });
-    let total_amount = total_amount(project.unit_price, project.payment_decimals, value);
+    let total_amount = total_amount(project.unit_price.unwrap(), project.payment_decimals, value);
 
     let image = match &project.slot_uri {
         Some(uri) => aggregate_image_from_slot_uri(&uri.as_str()).await,
@@ -270,7 +286,10 @@ async fn aggregate_tokens_with_project(
 
     match futures::future::try_join_all(handles).await {
         Ok(data) => Ok(data),
-        Err(e) => Err(ApiError::ProjectError(e)),
+        Err(e) => {
+            tracing::error!("failed to aggregate project data {:#?}", e);
+            Err(ApiError::ProjectError(e))
+        }
     }
 }
 #[derive(Serialize)]
