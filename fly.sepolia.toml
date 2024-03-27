@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for carbonable-testnet-indexer on 2023-05-02T09:35:54+02:00
+# fly.toml app configuration file generated for carbonable-mainnet-blue-indexer on 2023-05-02T09:35:54+02:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = "carbonable-staging-indexer"
+app = "carbonable-sepolia-indexer"
 primary_region = "cdg"
 kill_signal = "SIGINT"
 kill_timeout = "5s"
@@ -16,7 +16,7 @@ release_command = "/srv/www/carbonable-migration"
 
 [processes]
 api = "/srv/www/carbonable-api"
-indexer = "/srv/www/carbonable-indexer index --starting-block 800000"
+indexer = "/srv/www/carbonable-indexer index"
 event_store = "/srv/www/carbonable-indexer event-store"
 
 [[services]]

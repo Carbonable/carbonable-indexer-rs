@@ -8,7 +8,7 @@ use starknet::core::types::FieldElement;
 
 use crate::infrastructure::starknet::model::{felt_to_u256, ModelError};
 
-#[derive(Debug, Copy, PartialEq, PartialOrd, Eq, Default, Clone)]
+#[derive(Debug, Copy, PartialEq, PartialOrd, Eq, Ord, Default, Clone)]
 pub struct U256(pub(crate) crypto_bigint::U256);
 impl U256 {
     pub fn zero() -> Self {

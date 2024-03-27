@@ -33,8 +33,8 @@ async fn aggregate_metadata(mut project: ProjectViewModel) -> Result<ProjectView
     };
 
     match &mut project {
-        ProjectViewModel::Erc721(p) => p.uri.data = data.into(),
-        ProjectViewModel::Erc3525(p) => p.uri.data = data.into(),
+        ProjectViewModel::Erc721(p) => p.uri.data = data,
+        ProjectViewModel::Erc3525(p) => p.uri.data = data,
     }
 
     Ok(project)

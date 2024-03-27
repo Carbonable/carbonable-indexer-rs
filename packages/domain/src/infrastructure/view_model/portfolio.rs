@@ -16,7 +16,7 @@ pub struct ProjectWithMinterAndPaymentViewModel {
     pub value_decimals: U256,
     pub minter_id: Option<Ulid>,
     pub unit_price: Option<U256>,
-    pub symbol: String,
+    pub symbol: Option<String>,
     pub minter_address: String,
     pub payment_id: Ulid,
     pub payment_decimals: U256,

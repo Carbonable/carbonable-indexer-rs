@@ -1,3 +1,4 @@
+use bigdecimal::BigDecimal;
 use starknet::{
     core::types::FieldElement,
     providers::jsonrpc::{HttpTransport, JsonRpcClient},
@@ -151,8 +152,16 @@ async fn get_project_current_apr(
         Ok(d) => d,
         Err(_) => return Ok(ProjectApr::None),
     };
-    let apr = felt_to_u256(*data[0].clone().first().unwrap());
-    Ok(ProjectApr::Value(apr.to_big_decimal(3)))
+    let num = felt_to_u256(data[0].clone()[0]).to_big_decimal(3);
+    let den = felt_to_u256(data[0].clone()[1]).to_big_decimal(3);
+    Ok(ProjectApr::Value(apr_from_felt(&num, &den)))
+}
+
+fn apr_from_felt(numerator: &BigDecimal, denominator: &BigDecimal) -> BigDecimal {
+    if BigDecimal::from(0).eq(denominator) {
+        return BigDecimal::from(0);
+    }
+    ((numerator / denominator) * BigDecimal::from(100)).with_scale(4)
 }
 
 /// Get project status
@@ -337,4 +346,24 @@ pub async fn get_customer_details_project_data(
     let customer_details_project_data = builder.build();
 
     Ok(customer_details_project_data)
+}
+
+#[cfg(test)]
+mod tests {
+    use starknet::core::types::FieldElement;
+
+    use super::apr_from_felt;
+
+    #[test]
+    fn test_calculate_apr_works() {
+        let num = FieldElement::from_hex_be("0x8b99d8c758")
+            .unwrap()
+            .to_big_decimal(3);
+        let den = FieldElement::from_hex_be("0x4190ab000000")
+            .unwrap()
+            .to_big_decimal(3);
+
+        let res = apr_from_felt(&num, &den);
+        assert_eq!(res.to_string(), "0.8317");
+    }
 }
