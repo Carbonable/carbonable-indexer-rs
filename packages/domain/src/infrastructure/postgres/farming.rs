@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::domain::Ulid;
+use crate::{domain::Ulid, infrastructure::view_model::farming::ProjectAddressAndSlot};
 use deadpool_postgres::Pool;
 use sea_query::{Alias, Expr, JoinType, PostgresQueryBuilder, Query};
 use sea_query_postgres::PostgresBinder;
@@ -50,6 +50,16 @@ impl PostgresFarming {
                 UriIden::Table,
                 Expr::col((UriIden::Table, UriIden::Id))
                     .equals((ProjectIden::Table, ProjectIden::UriId)),
+            )
+            .inner_join(
+                YielderIden::Table,
+                Expr::col((YielderIden::Table, YielderIden::ProjectId))
+                    .equals((ProjectIden::Table, ProjectIden::Id)),
+            )
+            .inner_join(
+                OffseterIden::Table,
+                Expr::col((OffseterIden::Table, OffseterIden::ProjectId))
+                    .equals((ProjectIden::Table, ProjectIden::Id)),
             )
             .and_where(
                 Expr::col((ProjectIden::Table, ProjectIden::ErcImplementation))
@@ -381,6 +391,63 @@ impl PostgresFarming {
                 }
             }
             Err(_) => Ok(CustomerFarm::default()),
+        }
+    }
+
+    pub async fn get_project_migrator_address(
+        &self,
+        project_address: &str,
+    ) -> Result<Option<String>, PostgresError> {
+        let client = self.db_client_pool.clone().get().await?;
+        match client
+            .query_one(
+                r#"SELECT pr.migrator_address FROM project pr WHERE pr.address = lower($1)"#,
+                &[&project_address.to_string()],
+            )
+            .await
+        {
+            Ok(res) => Ok(res.get::<usize, Option<String>>(0)),
+            Err(e) => {
+                error!("get_project_migrator_address -> {:#?}", e);
+                Err(PostgresError::TokioPostgresError(e))
+            }
+        }
+    }
+
+    pub async fn get_project_metadata(
+        &self,
+        project_address: &str,
+        slot: &U256,
+    ) -> Result<serde_json::Value, PostgresError> {
+        let client = self.db_client_pool.clone().get().await?;
+        match client
+            .query_one(
+                r#"SELECT u.uri FROM uri u INNER JOIN project pr ON u.id = pr.uri_id WHERE pr.address = lower($1) and pr.slot = decode($2,$3)"#,
+                &[&project_address.to_string(), &slot.to_string(), &"hex".to_string()],
+            )
+            .await
+        {
+            Ok(res) => Ok(serde_json::from_str(&res.get::<usize, String>(0).replace("data:application/json,", "")).unwrap()),
+            Err(e) => {
+                error!("get_project_metadata -> {:#?}", e);
+                Err(PostgresError::TokioPostgresError(e))
+            }
+        }
+    }
+
+    pub async fn get_project_address_and_slot(
+        &self,
+    ) -> Result<Vec<ProjectAddressAndSlot>, PostgresError> {
+        let client = self.db_client_pool.clone().get().await?;
+        match client
+            .query(r#"SELECT p.address, p.slot, y.address, o.address FROM project p LEFT JOIN yielder y on y.project_id = p.id LEFT JOIN offseter o on o.project_id = p.id WHERE p.erc_implementation = 'erc_3525'"#, &[])
+            .await
+        {
+            Ok(res) => Ok(res.into_iter().map(|row| row.into()).collect()),
+            Err(e) => {
+                error!("get_project_address_and_slot -> {:#?}", e);
+                Err(PostgresError::TokioPostgresError(e))
+            }
         }
     }
 }

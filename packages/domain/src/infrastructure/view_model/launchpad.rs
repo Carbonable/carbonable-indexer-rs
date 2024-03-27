@@ -2,7 +2,7 @@ use crate::domain::{crypto::U256, Erc20, HumanComprehensibleU256, SlotValue};
 
 use super::project::UriViewModel;
 use crate::domain::Ulid;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use time::{macros::offset, OffsetDateTime, PrimitiveDateTime};
 
 #[derive(Debug, Serialize)]
@@ -10,7 +10,7 @@ pub struct Launchpad {
     is_ready: bool,
     #[serde(with = "time::serde::rfc3339::option")]
     sale_date: Option<OffsetDateTime>,
-    minter_contract: MinterContract,
+    pub minter_contract: MinterContract,
     image: Option<String>,
     whitelisted_sale_open: bool,
     public_sale_open: bool,
@@ -18,9 +18,55 @@ pub struct Launchpad {
 }
 
 #[derive(Debug, Serialize)]
+pub struct CurrentMilestone {
+    pub remaining: HumanComprehensibleU256<U256>,
+    pub milestone_ceil: u64,
+    pub boost: Option<String>,
+    pub id: u64,
+    pub ha: Option<String>,
+    pub ton: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Milestone {
+    pub boost: Option<String>,
+    pub ceil: u64,
+    pub id: u64,
+    pub ha: Option<String>,
+    pub ton: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProjectMetadata {
+    pub milestones: Vec<Milestone>,
+    pub rating: String,
+    pub ton_price: String,
+}
+impl From<&serde_json::Value> for ProjectMetadata {
+    fn from(value: &serde_json::Value) -> Self {
+        Self {
+            milestones: value["milestones"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|m| Milestone {
+                    boost: m["boost"].as_str().map(|b| b.to_owned()),
+                    ceil: m["ceil"].as_u64().unwrap(),
+                    id: m["id"].as_u64().unwrap_or(0),
+                    ha: m["ha"].as_str().map(|b| b.to_owned()),
+                    ton: m["ton"].as_str().map(|b| b.to_owned()),
+                })
+                .collect(),
+            rating: value["rating"].as_str().unwrap().to_owned(),
+            ton_price: value["ton_price"].as_str().unwrap().to_owned(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub struct MinterContract {
-    address: String,
-    abi: serde_json::Value,
+    pub address: String,
+    pub abi: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -35,12 +81,14 @@ pub struct LaunchpadProjectDetails {
     pub(crate) forecasted_apr: Option<String>,
     pub(crate) total_value: Option<U256>,
     pub(crate) payment_token: Option<HumanComprehensibleU256<U256>>,
+    pub metadata: Option<serde_json::Value>,
+    pub current_milestone: Option<CurrentMilestone>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct LaunchpadProject {
     pub project: LaunchpadProjectDetails,
-    launchpad: Launchpad,
+    pub launchpad: Launchpad,
     #[serde(skip_serializing_if = "Option::is_none")]
     whitelist: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -143,6 +191,11 @@ impl From<tokio_postgres::Row> for LaunchpadProject {
                     Ok(fa) => Some(fa),
                     Err(_) => None,
                 },
+                metadata: match value.try_get(26) {
+                    Ok(m) => Some(m),
+                    Err(_) => None,
+                },
+                current_milestone: None,
             },
             launchpad: Launchpad {
                 is_ready: value.get(4),

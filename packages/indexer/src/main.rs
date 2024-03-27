@@ -38,8 +38,9 @@ use carbonable_domain::{
             get_connection, PostgresModels,
         },
         seed::{
-            badge::BadgeSeeder, minter::MinterSeeder, offseter::OffseterSeeder,
-            project::ProjectSeeder, yielder::YielderSeeder, DataSeeder, Seeder,
+            badge::BadgeSeeder, migrator::MigratorSeeder, minter::MinterSeeder,
+            offseter::OffseterSeeder, project::ProjectSeeder, yielder::YielderSeeder, DataSeeder,
+            Seeder,
         },
     },
 };
@@ -125,7 +126,8 @@ async fn handle_seeding(
         Arc::new(OffseterSeeder::<Erc721>::new(db_models.clone())),
         Arc::new(OffseterSeeder::<Erc3525>::new(db_models_3525.clone())),
         Arc::new(YielderSeeder::<Erc721>::new(db_models)),
-        Arc::new(YielderSeeder::<Erc3525>::new(db_models_3525)),
+        Arc::new(YielderSeeder::<Erc3525>::new(db_models_3525.clone())),
+        Arc::new(MigratorSeeder::new(db_models_3525)),
     ];
 
     match DataSeeder::feed_from_data(&file_path, seeders)

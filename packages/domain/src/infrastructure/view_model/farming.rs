@@ -556,3 +556,21 @@ impl From<tokio_postgres::Row> for CustomerFarmItem {
         }
     }
 }
+
+pub struct ProjectAddressAndSlot {
+    pub address: String,
+    pub slot: U256,
+    pub yielder: Option<String>,
+    pub offseter: Option<String>,
+}
+
+impl From<tokio_postgres::Row> for ProjectAddressAndSlot {
+    fn from(value: tokio_postgres::Row) -> Self {
+        Self {
+            address: value.get(0),
+            slot: value.get(1),
+            yielder: value.get(2),
+            offseter: value.get(3),
+        }
+    }
+}

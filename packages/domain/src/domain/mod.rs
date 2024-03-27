@@ -12,10 +12,12 @@ pub mod project;
 pub trait Contract {}
 
 /// Structure representing an ERC-721 smart contract
+#[derive(Debug)]
 pub struct Erc721;
 impl Contract for Erc721 {}
 
 /// Structure representing an ERC-3525 smart contract
+#[derive(Debug)]
 pub struct Erc3525;
 impl Contract for Erc3525 {}
 
@@ -77,7 +79,7 @@ impl<'a> FromSql<'a> for Ulid {
 }
 
 /// Represents a project slot value
-#[derive(Debug, Default, Serialize, Copy, Clone)]
+#[derive(Debug, Default, Serialize, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SlotValue {
     value: U256,
     value_decimals: u32,
@@ -113,7 +115,7 @@ impl std::ops::SubAssign<U256> for SlotValue {
 }
 
 /// Represents an ERC-20 token used to finance projects
-#[derive(Debug, Default, Serialize, Clone)]
+#[derive(Debug, Default, Serialize, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Erc20 {
     symbol: String,
     decimals: u32,
@@ -155,7 +157,7 @@ impl std::ops::SubAssign<U256> for Erc20 {
 /// Mass can either be a U256 or a bigdecimal depending if we're dividing value by another one or not
 /// If at any moment you have to divide anything please reach out king of bits aka @tekkac
 /// Represents mass from blockchain
-#[derive(Debug, Default, Serialize, Copy, Clone)]
+#[derive(Debug, Default, Serialize, Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Mass<T> {
     value: T,
 }
@@ -200,7 +202,7 @@ impl std::ops::SubAssign<U256> for Mass<U256> {
 /// A U256 human-comprehensible representation.
 /// This keeps track of an inner U256 and a string
 /// that will help frontend to display content easyli
-#[derive(Debug, Default, Clone, Serialize)]
+#[derive(Debug, Default, Clone, Serialize, Ord, PartialOrd, Eq, PartialEq)]
 #[serde(tag = "type")]
 pub enum HumanComprehensibleU256<T> {
     #[default]

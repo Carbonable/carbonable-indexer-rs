@@ -10,6 +10,7 @@ pub mod project;
 pub mod uri;
 pub mod yielder;
 
+use reqwest::header::{HeaderMap, HeaderValue, InvalidHeaderValue};
 use starknet::{
     core::types::FieldElement,
     providers::{
@@ -32,14 +33,21 @@ pub enum SequencerError {
     NoEnvProvided,
     #[error("environment variable 'SEQUENCER_DOMAIN' not provided")]
     NoSequencerDomainProvided,
+    #[error("environment variable 'JUNO_API_KEY' not provided")]
+    NoJunoApiKeyProvided,
     #[error(transparent)]
     UrlParseError(#[from] url::ParseError),
+    #[error(transparent)]
+    ReqwestClientError(#[from] reqwest::Error),
+    #[error(transparent)]
+    InvalidHeaderValueError(#[from] InvalidHeaderValue),
 }
 
 pub enum StarknetEnv {
     Mainnet,
     Goerli,
     Goerli2,
+    Sepolia,
     Local,
 }
 
@@ -48,6 +56,7 @@ impl From<String> for StarknetEnv {
         match env.as_str() {
             "mainnet" => Self::Mainnet,
             "goerli" => Self::Goerli,
+            "sepolia" => Self::Sepolia,
             "goerli2" => Self::Goerli2,
             "local" => Self::Local,
             _ => panic!("Invalid environment"),
@@ -88,6 +97,10 @@ pub fn get_starknet_rpc_from_env() -> Result<JsonRpcClient<HttpTransport>, Seque
 pub fn get_starknet_provider(env: StarknetEnv) -> Result<SequencerGatewayProvider, SequencerError> {
     Ok(match env {
         StarknetEnv::Mainnet => SequencerGatewayProvider::starknet_alpha_mainnet(),
+        StarknetEnv::Sepolia => SequencerGatewayProvider::new(
+            Url::parse("https://alpha-sepolia.starknet.io/gateway").unwrap(),
+            Url::parse("https://alpha-sepolia.starknet.io/feeder_gateway").unwrap(),
+        ),
         StarknetEnv::Goerli => SequencerGatewayProvider::starknet_alpha_goerli(),
         StarknetEnv::Goerli2 => SequencerGatewayProvider::starknet_alpha_goerli_2(),
         StarknetEnv::Local => SequencerGatewayProvider::starknet_nile_localhost(),
@@ -99,9 +112,19 @@ fn get_starknet_rpc_client(
     env: StarknetEnv,
 ) -> Result<JsonRpcClient<HttpTransport>, SequencerError> {
     let sequencer_domain = get_sequencer_domain(&env)?;
-    Ok(JsonRpcClient::new(HttpTransport::new(Url::parse(
-        &sequencer_domain,
-    )?)))
+    let juno_api_key = match std::env::var("JUNO_API_KEY") {
+        Ok(k) => k,
+        Err(_) => return Err(SequencerError::NoJunoApiKeyProvided),
+    };
+    let mut headers = HeaderMap::new();
+    headers.insert("x-apikey", HeaderValue::from_str(&juno_api_key)?);
+    let client = reqwest::Client::builder()
+        .default_headers(headers)
+        .build()?;
+    Ok(JsonRpcClient::new(HttpTransport::new_with_client(
+        Url::parse(&sequencer_domain)?,
+        client,
+    )))
 }
 
 /// Get sequencer from given [`StarknetEnv`] variable
@@ -109,6 +132,7 @@ fn get_sequencer_domain(env: &StarknetEnv) -> Result<String, SequencerError> {
     if let Ok(domain) = std::env::var("SEQUENCER_DOMAIN") {
         let subdomain = match env {
             StarknetEnv::Mainnet => "starknet-mainnet",
+            StarknetEnv::Sepolia => "starknet-sepolia",
             StarknetEnv::Goerli => "starknet-goerli",
             StarknetEnv::Goerli2 => "starknet-goerli2",
             StarknetEnv::Local => "http://localhost:3000",
@@ -126,7 +150,7 @@ pub async fn get_proxy_abi(
     implementation_hash: FieldElement,
 ) -> Result<serde_json::Value, ModelError> {
     let res = provider
-        .get_class_at(&BlockId::Tag(BlockTag::Latest), implementation_hash)
+        .get_class_at(&BlockId::Tag(BlockTag::Pending), implementation_hash)
         .await?;
     match res {
         starknet::providers::jsonrpc::models::ContractClass::Sierra(c) => {

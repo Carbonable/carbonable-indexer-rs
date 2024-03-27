@@ -67,6 +67,9 @@ impl DomainEvent {
                 continue;
             }
         }
+        if event.is_none() {
+            tracing::error!("FROM {} KEY {}", from, key);
+        }
 
         let mut metadata = HashMap::new();
         add_tx_hash(&mut metadata, &value);

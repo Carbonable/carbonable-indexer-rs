@@ -4,8 +4,11 @@ use bigdecimal::ToPrimitive;
 use crypto_bigint::{CheckedAdd, CheckedMul, CheckedSub, Encoding};
 use postgres_types::FromSql;
 use serde::Serialize;
+use starknet::core::types::FieldElement;
 
-#[derive(Debug, Copy, PartialEq, PartialOrd, Eq, Default, Clone)]
+use crate::infrastructure::starknet::model::{felt_to_u256, ModelError};
+
+#[derive(Debug, Copy, PartialEq, PartialOrd, Eq, Ord, Default, Clone)]
 pub struct U256(pub(crate) crypto_bigint::U256);
 impl U256 {
     pub fn zero() -> Self {
@@ -96,6 +99,20 @@ impl From<u64> for U256 {
 impl From<u128> for U256 {
     fn from(value: u128) -> Self {
         U256(crypto_bigint::U256::from_u128(value))
+    }
+}
+impl TryFrom<Vec<FieldElement>> for U256 {
+    type Error = ModelError;
+
+    fn try_from(value: Vec<FieldElement>) -> Result<Self, Self::Error> {
+        if value.len() != 2 {
+            return Err(Self::Error::TypeConversionError(
+                "Vec<FieldElement>".to_owned(),
+                "U256".to_owned(),
+            ));
+        }
+
+        Ok(felt_to_u256(value[0]))
     }
 }
 impl From<usize> for U256 {

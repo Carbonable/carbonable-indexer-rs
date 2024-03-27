@@ -14,9 +14,9 @@ pub struct ProjectWithMinterAndPaymentViewModel {
     pub slot: Option<U256>,
     pub erc_implementation: ErcImplementation,
     pub value_decimals: U256,
-    pub minter_id: Ulid,
-    pub unit_price: U256,
-    pub symbol: String,
+    pub minter_id: Option<Ulid>,
+    pub unit_price: Option<U256>,
+    pub symbol: Option<String>,
     pub minter_address: String,
     pub payment_id: Ulid,
     pub payment_decimals: U256,
@@ -30,6 +30,8 @@ pub struct ProjectWithMinterAndPaymentViewModel {
 impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
     fn from(value: tokio_postgres::Row) -> Self {
         let erc_implementation: ErcImplementation = value.get(5);
+        let yielder_address: Option<String> = value.get(15);
+        let offsetter_address: Option<String> = value.get(16);
         Self {
             id: value.get(0),
             address: value.get(1),
@@ -46,8 +48,16 @@ impl From<tokio_postgres::Row> for ProjectWithMinterAndPaymentViewModel {
             payment_decimals: value.get(12),
             abi: value.get(13),
             minter_abi: value.get(14),
-            yielder_address: value.get(15),
-            offseter_address: value.get(16),
+            yielder_address: if let Some(yielder_address) = yielder_address {
+                yielder_address
+            } else {
+                "".to_string()
+            },
+            offseter_address: if let Some(offsetter_address) = offsetter_address {
+                offsetter_address
+            } else {
+                "".to_string()
+            },
             slot_uri: value.get(17),
         }
     }
@@ -88,6 +98,7 @@ pub enum ProjectWithTokens {
         total_amount: U256,
         abi: PortfolioAbi,
         image: serde_json::Value,
+        migrator_address: Option<String>,
     },
     Erc3525 {
         id: Ulid,
@@ -100,6 +111,8 @@ pub enum ProjectWithTokens {
         total_deposited_value: HumanComprehensibleU256<U256>,
         abi: PortfolioAbi,
         image: serde_json::Value,
+        asset_area: Option<String>,
+        asset_carbon_unit: Option<String>,
     },
 }
 

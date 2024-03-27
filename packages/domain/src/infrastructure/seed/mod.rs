@@ -1,4 +1,5 @@
 pub mod badge;
+pub mod migrator;
 pub mod minter;
 pub mod offseter;
 pub mod project;
@@ -12,7 +13,7 @@ use starknet::providers::{ProviderError, SequencerGatewayProviderError};
 use thiserror::Error;
 use tracing::{debug, error};
 
-use super::starknet::model::ModelError;
+use super::starknet::{model::ModelError, SequencerError};
 
 #[derive(Error, Debug)]
 pub enum DataSeederError {
@@ -30,6 +31,8 @@ pub enum DataSeederError {
     SerdeError(#[from] serde_json::Error),
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
+    #[error("failed to get starknet rpc provider from env")]
+    SequencerError(#[from] SequencerError),
 }
 
 #[async_trait::async_trait]

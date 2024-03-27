@@ -214,6 +214,8 @@ pub struct Project {
     pub uri_id: Option<Ulid>,
     pub project_value: Option<U256>,
     pub slot_uri: Option<String>,
+    pub migrator_address: Option<String>,
+    pub metadata: Option<serde_json::Value>,
 }
 
 impl From<tokio_postgres::Row> for Project {
@@ -238,6 +240,8 @@ impl From<tokio_postgres::Row> for Project {
             uri_id: None,
             project_value: value.get(14),
             slot_uri: value.get(15),
+            migrator_address: value.get(16),
+            metadata: None,
         }
     }
 }

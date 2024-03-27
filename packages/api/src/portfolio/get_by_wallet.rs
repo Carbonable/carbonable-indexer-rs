@@ -11,7 +11,8 @@ use carbonable_domain::{
             project::PostgresProject,
         },
         starknet::{
-            ensure_starknet_wallet,
+            ensure_starknet_wallet, get_starknet_rpc_from_env,
+            model::{parallelize_blockchain_rpc_calls, u256_to_felt, ModelError},
             portfolio::{load_erc_3525_portfolio, load_erc_721_portfolio},
         },
         view_model::{
@@ -20,6 +21,7 @@ use carbonable_domain::{
         },
     },
 };
+use starknet::core::types::FieldElement;
 use std::sync::Arc;
 
 use crate::{
@@ -27,15 +29,24 @@ use crate::{
     AppDependencies,
 };
 
+const HA_IN_M2: u64 = 10000;
+const TON_IN_G: u64 = 1000000;
+
 async fn aggregate_image_from_slot_uri(slot_uri: &str) -> serde_json::Value {
     let client = Client::new();
     if slot_uri.starts_with("data:application/json") {
         let metadata: serde_json::Value =
             serde_json::from_str(slot_uri.replace("data:application/json,", "").as_str())
                 .expect("failed to parse json");
-        return metadata["image"].clone();
+        if let Some(image) = metadata.get("image") {
+            return image.clone();
+        }
+        return metadata
+            .get("image_data")
+            .expect("failed to query field image_data on metadata")
+            .clone();
     }
-    let uri = slot_uri.replace("\"", "");
+    let uri = slot_uri.replace('\"', "");
     let data: serde_json::Value = client
         .get(uri)
         .send()
@@ -44,19 +55,36 @@ async fn aggregate_image_from_slot_uri(slot_uri: &str) -> serde_json::Value {
         .json()
         .await
         .expect("failed to parse json");
-    return data["image"].clone();
+
+    if let Some(image) = data.get("image") {
+        return image.clone();
+    }
+    data.get("image_data")
+        .expect("failed to query field image_data on metadata")
+        .clone()
 }
 
 async fn aggregate_721_tokens(
+    model: Arc<PostgresFarming>,
     project: ProjectWithMinterAndPaymentViewModel,
     wallet: String,
 ) -> Result<Option<ProjectWithTokens>, ProjectError> {
-    let tokens = load_erc_721_portfolio(&project, &wallet).await?;
+    let tokens = match load_erc_721_portfolio(&project, &wallet).await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("failed to load 721 portfolio {:#?}", e);
+            return Err(ProjectError::ModelError(e));
+        }
+    };
     if tokens.is_empty() {
         return Ok(None);
     }
+    if project.unit_price.is_none() {
+        return Err(ProjectError::UnitPriceNotSet);
+    }
+    let migrator_address = model.get_project_migrator_address(&project.address).await?;
     let total_amount = total_amount(
-        project.unit_price,
+        project.unit_price.unwrap(),
         project.payment_decimals,
         U256::from(tokens.len()),
     );
@@ -78,6 +106,7 @@ async fn aggregate_721_tokens(
             minter: project.minter_abi,
         },
         image,
+        migrator_address,
     };
 
     Ok(Some(project))
@@ -88,13 +117,20 @@ async fn aggregate_3525_tokens(
     wallet: String,
     customer_tokens: Vec<CustomerToken>,
 ) -> Result<Option<ProjectWithTokens>, ProjectError> {
-    let tokens = load_erc_3525_portfolio(
+    let tokens = match load_erc_3525_portfolio(
         &project,
         &project.address,
         &project.slot.expect("slot is required here"),
         &customer_tokens.as_slice(),
     )
-    .await?;
+    .await
+    {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("failed to load 3525 portfolio {:#?}", e);
+            return Err(ProjectError::ModelError(e));
+        }
+    };
 
     let customer_farm = farming_model
         .get_customer_farm(
@@ -113,12 +149,16 @@ async fn aggregate_3525_tokens(
         .fold(U256::zero() + total_yielded + total_offseted, |acc, e| {
             acc + e.value
         });
-    let total_amount = total_amount(project.unit_price, project.payment_decimals, value);
+    let total_amount = total_amount(project.unit_price.unwrap(), project.payment_decimals, value);
 
     let image = match &project.slot_uri {
         Some(uri) => aggregate_image_from_slot_uri(&uri.as_str()).await,
         None => serde_json::Value::String("<deprecated>".to_owned()),
     };
+    let slot = project.slot.expect("slot is required here");
+    let (asset_area, asset_carbon_unit) =
+        get_asset_area_and_carbon_unit(farming_model.clone(), &project.address, &slot, &value)
+            .await;
 
     let project = ProjectWithTokens::Erc3525 {
         id: project.id,
@@ -137,9 +177,90 @@ async fn aggregate_3525_tokens(
             minter: project.minter_abi,
         },
         image,
+        asset_area: Some(asset_area),
+        asset_carbon_unit: Some(asset_carbon_unit),
     };
 
     Ok(Some(project))
+}
+async fn get_asset_area_and_carbon_unit(
+    model: Arc<PostgresFarming>,
+    project_address: &str,
+    slot: &U256,
+    value: &U256,
+) -> (String, String) {
+    let uri_data: serde_json::Value = match model.get_project_metadata(project_address, slot).await
+    {
+        Ok(d) => d,
+        Err(_) => return ("".to_owned(), "".to_owned()),
+    };
+    // Project Area (ha)
+    let project_area = extract_from_uri(&uri_data, "8");
+    // Total Carbon Units
+    let project_carbon_unit = extract_from_uri(&uri_data, "10");
+
+    let total_value: U256 = match get_project_total_value(project_address, slot).await {
+        Ok(v) => v,
+        Err(_) => return ("".to_owned(), "".to_owned()),
+    };
+
+    return (
+        get_asset_area(value, &project_area, &total_value),
+        get_asset_carbon_unit(value, &project_carbon_unit, &total_value),
+    );
+}
+async fn get_project_total_value(project_address: &str, slot: &U256) -> Result<U256, ModelError> {
+    let provider = get_starknet_rpc_from_env()?;
+    let calldata = [(
+        project_address.to_owned(),
+        "get_project_value",
+        vec![u256_to_felt(slot), FieldElement::ZERO],
+    )];
+    let data = parallelize_blockchain_rpc_calls(provider.into(), calldata.to_vec()).await?;
+    let total_value = U256::try_from(data[0].clone())?;
+    Ok(total_value)
+}
+
+fn extract_from_uri(uri_data: &serde_json::Value, selector: &str) -> U256 {
+    let attribute = uri_data.pointer(&format!("/attributes/{selector}/value"));
+    match attribute {
+        Some(v) => U256::from(v.as_u64().expect("failed to parse u64 string from json")),
+        None => U256::zero(),
+    }
+}
+
+fn get_asset_area(value: &U256, project_area: &U256, project_value: &U256) -> String {
+    let asset_area = (*value * (*project_area * U256::from(HA_IN_M2))) / *project_value;
+    format_area(asset_area)
+}
+fn get_asset_carbon_unit(value: &U256, project_carbon_unit: &U256, project_value: &U256) -> String {
+    let asset_carbon_unit =
+        (*value * (*project_carbon_unit * U256::from(TON_IN_G))) / *project_value;
+    format_capacity(asset_carbon_unit)
+}
+fn format_area(value: U256) -> String {
+    if value == U256::zero() {
+        return "N/A".to_owned();
+    }
+    let ha_in_m2 = U256::from(HA_IN_M2);
+    if value > ha_in_m2 {
+        return format!("{}ha", (value / ha_in_m2).to_big_decimal(0));
+    }
+
+    return format!("{}m²", value.to_big_decimal(0));
+}
+fn format_capacity(value: U256) -> String {
+    if value == U256::zero() {
+        return "N/A".to_owned();
+    }
+    if value < U256::from(1000u64) {
+        return format!("{}g", value.to_big_decimal(0));
+    }
+    if value < U256::from(1000000u64) {
+        return format!("{}kg", (value / U256::from(1000u64)).to_big_decimal(0));
+    }
+
+    return format!("{}t", (value / U256::from(1000000u64)).to_big_decimal(0));
 }
 
 fn total_amount(unit_price: U256, _payment_decimals: U256, amount: U256) -> U256 {
@@ -158,25 +279,29 @@ async fn aggregate_tokens_with_project(
         let wallet_address = wallet.clone();
         let tokens = customer_tokens.clone();
         let model = farming_model.clone();
-        let handle = match &project.erc_implementation {
-            ErcImplementation::Enum => {
-                return Err(ApiError::ProjectError(
-                    ProjectError::InvalidErcImplementation,
-                ));
-            }
-            ErcImplementation::Erc721 => {
-                tokio::spawn(async move { aggregate_721_tokens(project, wallet_address).await })
-            }
-            ErcImplementation::Erc3525 => tokio::spawn(async move {
-                aggregate_3525_tokens(model, project, wallet_address, tokens.to_vec()).await
-            }),
-        };
+        let handle =
+            match &project.erc_implementation {
+                ErcImplementation::Enum => {
+                    return Err(ApiError::ProjectError(
+                        ProjectError::InvalidErcImplementation,
+                    ));
+                }
+                ErcImplementation::Erc721 => tokio::spawn(async move {
+                    aggregate_721_tokens(model, project, wallet_address).await
+                }),
+                ErcImplementation::Erc3525 => tokio::spawn(async move {
+                    aggregate_3525_tokens(model, project, wallet_address, tokens.to_vec()).await
+                }),
+            };
         handles.push(flatten(handle));
     }
 
     match futures::future::try_join_all(handles).await {
         Ok(data) => Ok(data),
-        Err(e) => Err(ApiError::ProjectError(e)),
+        Err(e) => {
+            tracing::error!("failed to aggregate project data {:#?}", e);
+            Err(ApiError::ProjectError(e))
+        }
     }
 }
 #[derive(Serialize)]

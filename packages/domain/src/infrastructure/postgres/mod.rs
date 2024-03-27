@@ -86,6 +86,7 @@ pub async fn get_connection(database_uri: Option<&str>) -> Result<Pool, Postgres
 
 #[derive(Clone, Debug)]
 pub struct PostgresModels<C: Contract> {
+    inner: Arc<Pool>,
     pub project: Arc<PostgresProject<C>>,
     pub implementation: Arc<PostgresImplementation>,
     pub uri: Arc<PostgresUri>,
@@ -108,9 +109,10 @@ where
         let minter = Arc::new(PostgresMinter::<C>::new(db_client_pool.clone()));
         let payment = Arc::new(PostgresPayment::new(db_client_pool.clone()));
         let offseter = Arc::new(PostgresOffseter::new(db_client_pool.clone()));
-        let yielder = Arc::new(PostgresYielder::new(db_client_pool));
+        let yielder = Arc::new(PostgresYielder::new(db_client_pool.clone()));
 
         Self {
+            inner: db_client_pool,
             project,
             implementation,
             uri,
@@ -142,6 +144,44 @@ pub async fn find_or_create_project(
                     Err(PostgresError::FailedToSeedProject)
                 }
             }
+        }
+    }
+}
+
+pub async fn find_721_project_id<C: Contract>(
+    db_models: Arc<PostgresModels<C>>,
+    address: &str,
+) -> Result<String, PostgresError> {
+    let client = db_models.inner.get().await?;
+    let query = r#"
+        SELECT p.id FROM project p WHERE p.address = $1 AND p.erc_implementation = 'erc_721'"#;
+    match client.query_one(query, &[&address.to_owned()]).await {
+        Ok(res) => Ok(res.get::<usize, String>(0)),
+        Err(e) => {
+            tracing::error!("failed to get 721 project id : {:#?}", e);
+            Err(PostgresError::TokioPostgresError(e))
+        }
+    }
+}
+pub async fn update_721_project_migrator_address<C: Contract>(
+    db_models: Arc<PostgresModels<C>>,
+    project_id: &str,
+    migrator_address: &str,
+) -> Result<(), PostgresError> {
+    let client = db_models.inner.get().await?;
+    let query = r#"
+        UPDATE project SET migrator_address = $1 WHERE id = $2"#;
+    match client
+        .execute(
+            query,
+            &[&migrator_address.to_owned(), &project_id.to_owned()],
+        )
+        .await
+    {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            tracing::error!("failed to update 721 project migrator : {:#?}", e);
+            Err(PostgresError::TokioPostgresError(e))
         }
     }
 }

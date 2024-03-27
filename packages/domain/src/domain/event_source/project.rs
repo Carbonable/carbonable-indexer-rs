@@ -69,8 +69,10 @@ impl Filterable for ProjectFilters {
         let contracts = self.extract_addresses(address_list, &["project", "project_3525"]);
         self.contracts = contracts;
         for contract in self.contracts.iter() {
+            let parts = contract.split("//").collect::<Vec<&str>>();
+            let addr = parts[0];
             self.filters.insert(
-                contract.to_string(),
+                addr.to_string(),
                 [
                     (
                         FieldElement::from_bytes(&selector!("Transfer").to_bytes_be()).to_string(),
