@@ -8,7 +8,7 @@ use std::{
 };
 use tracing::info;
 
-use crate::latest::get_latest_block;
+use crate::{common::ApiError, latest::get_latest_block};
 
 pub mod common;
 pub mod farming;
@@ -20,6 +20,16 @@ pub mod project;
 #[get("/ping")]
 async fn ping() -> impl Responder {
     HttpResponse::Ok().body("Pong !")
+}
+#[get("/config")]
+async fn get_config(data: web::Data<AppDependencies>) -> Result<impl Responder, ApiError> {
+    let file_path = format!("./data/{}.data.json", data.configuration.network);
+    let file = std::fs::File::open(file_path).expect("failed to open file from path");
+    let reader = std::io::BufReader::new(file);
+
+    let content: serde_json::Value =
+        serde_json::from_reader(reader).expect("failed to decode file to json");
+    Ok(HttpResponse::Ok().json(content))
 }
 
 pub struct AppDependencies {
@@ -48,6 +58,7 @@ async fn main() -> std::io::Result<()> {
                 db_client_pool: db_client_pool.clone(),
             }))
             .service(ping)
+            .service(get_config)
             .service(web::scope("/latest").route("/block", web::get().to(get_latest_block)))
             .service(web::scope("/portfolio").route(
                 "/{wallet}",
@@ -59,6 +70,10 @@ async fn main() -> std::io::Result<()> {
             )
             .service(
                 web::scope("/farming")
+                    .route(
+                        "/claim-all/{wallet}",
+                        web::get().to(farming::claim::claim_all),
+                    )
                     .route("/list", web::get().to(farming::list::farming_list))
                     .route(
                         "/list/global/{wallet}",

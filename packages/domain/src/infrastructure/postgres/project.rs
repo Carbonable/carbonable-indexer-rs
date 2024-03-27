@@ -447,6 +447,7 @@ impl PostgresProject<Erc721> {
                 (MinterIden::Table, MinterIden::ReservedSupply),
             ])
             .column((PaymentIden::Table, PaymentIden::Address))
+            .column((ProjectIden::Table, ProjectIden::Metadata))
             .inner_join(
                 MinterIden::Table,
                 Expr::col((MinterIden::Table, MinterIden::ProjectId))

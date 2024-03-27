@@ -1,7 +1,10 @@
 use actix_web::ResponseError;
 use carbonable_domain::{
     domain::project::ProjectError,
-    infrastructure::{postgres::PostgresError, starknet::model::ModelError},
+    infrastructure::{
+        postgres::PostgresError,
+        starknet::{model::ModelError, SequencerError},
+    },
 };
 use deadpool_postgres::PoolError;
 use serde::{Deserialize, Serialize};
@@ -36,6 +39,8 @@ pub enum ApiError {
     SerdeJsonError(#[from] serde_json::Error),
     #[error("failed to acquire sequencer connection")]
     FailedToAcquireSequencerConnection,
+    #[error(transparent)]
+    SequencerError(#[from] SequencerError),
 }
 
 impl ResponseError for ApiError {}

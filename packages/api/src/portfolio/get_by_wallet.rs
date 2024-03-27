@@ -38,9 +38,15 @@ async fn aggregate_image_from_slot_uri(slot_uri: &str) -> serde_json::Value {
         let metadata: serde_json::Value =
             serde_json::from_str(slot_uri.replace("data:application/json,", "").as_str())
                 .expect("failed to parse json");
-        return metadata["image"].clone();
+        if let Some(image) = metadata.get("image") {
+            return image.clone();
+        }
+        return metadata
+            .get("image_data")
+            .expect("failed to query field image_data on metadata")
+            .clone();
     }
-    let uri = slot_uri.replace("\"", "");
+    let uri = slot_uri.replace('\"', "");
     let data: serde_json::Value = client
         .get(uri)
         .send()
@@ -49,7 +55,13 @@ async fn aggregate_image_from_slot_uri(slot_uri: &str) -> serde_json::Value {
         .json()
         .await
         .expect("failed to parse json");
-    return data["image"].clone();
+
+    if let Some(image) = data.get("image") {
+        return image.clone();
+    }
+    data.get("image_data")
+        .expect("failed to query field image_data on metadata")
+        .clone()
 }
 
 async fn aggregate_721_tokens(
@@ -94,7 +106,7 @@ async fn aggregate_721_tokens(
             minter: project.minter_abi,
         },
         image,
-        migrator_address: Some(migrator_address),
+        migrator_address,
     };
 
     Ok(Some(project))

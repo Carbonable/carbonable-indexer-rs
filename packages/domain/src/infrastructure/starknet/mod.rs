@@ -47,6 +47,7 @@ pub enum StarknetEnv {
     Mainnet,
     Goerli,
     Goerli2,
+    Sepolia,
     Local,
 }
 
@@ -55,6 +56,7 @@ impl From<String> for StarknetEnv {
         match env.as_str() {
             "mainnet" => Self::Mainnet,
             "goerli" => Self::Goerli,
+            "sepolia" => Self::Sepolia,
             "goerli2" => Self::Goerli2,
             "local" => Self::Local,
             _ => panic!("Invalid environment"),
@@ -95,6 +97,10 @@ pub fn get_starknet_rpc_from_env() -> Result<JsonRpcClient<HttpTransport>, Seque
 pub fn get_starknet_provider(env: StarknetEnv) -> Result<SequencerGatewayProvider, SequencerError> {
     Ok(match env {
         StarknetEnv::Mainnet => SequencerGatewayProvider::starknet_alpha_mainnet(),
+        StarknetEnv::Sepolia => SequencerGatewayProvider::new(
+            Url::parse("https://alpha-sepolia.starknet.io/gateway").unwrap(),
+            Url::parse("https://alpha-sepolia.starknet.io/feeder_gateway").unwrap(),
+        ),
         StarknetEnv::Goerli => SequencerGatewayProvider::starknet_alpha_goerli(),
         StarknetEnv::Goerli2 => SequencerGatewayProvider::starknet_alpha_goerli_2(),
         StarknetEnv::Local => SequencerGatewayProvider::starknet_nile_localhost(),
@@ -126,6 +132,7 @@ fn get_sequencer_domain(env: &StarknetEnv) -> Result<String, SequencerError> {
     if let Ok(domain) = std::env::var("SEQUENCER_DOMAIN") {
         let subdomain = match env {
             StarknetEnv::Mainnet => "starknet-mainnet",
+            StarknetEnv::Sepolia => "starknet-sepolia",
             StarknetEnv::Goerli => "starknet-goerli",
             StarknetEnv::Goerli2 => "starknet-goerli2",
             StarknetEnv::Local => "http://localhost:3000",
