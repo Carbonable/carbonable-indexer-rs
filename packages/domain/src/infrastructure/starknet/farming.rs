@@ -50,24 +50,32 @@ async fn customer_farming_data(
     wallet: String,
     data: CustomerGlobalDataForComputation,
 ) -> Result<CustomerGlobalData, ModelError> {
+    let yielder_address = match &data.yielder_address {
+        Some(s) => s.to_owned(),
+        None => return Err(ModelError::NotReadyForFarming),
+    };
+    let offseter_address = match &data.offseter_address {
+        Some(s) => s.to_owned(),
+        None => return Err(ModelError::NotReadyForFarming),
+    };
     let calldata = [
         (
-            data.offseter_address.to_string(),
+            offseter_address.to_string(),
             "get_deposited_of",
             vec![FieldElement::from_hex_be(&wallet).unwrap()],
         ),
         (
-            data.yielder_address.to_string(),
+            yielder_address.to_string(),
             "get_deposited_of",
             vec![FieldElement::from_hex_be(&wallet).unwrap()],
         ),
         (
-            data.offseter_address.to_string(),
+            offseter_address.to_string(),
             "get_claimable_of",
             vec![FieldElement::from_hex_be(&wallet).unwrap()],
         ),
         (
-            data.yielder_address.to_string(),
+            yielder_address.to_string(),
             "get_claimable_of",
             vec![FieldElement::from_hex_be(&wallet).unwrap()],
         ),
@@ -112,6 +120,9 @@ pub async fn get_customer_global_farming_data(
     let mut handles = vec![];
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     for data in addresses.into_iter() {
+        if data.yielder_address.is_none() || data.offseter_address.is_none() {
+            continue;
+        }
         let provider = provider.clone();
         let wallet = wallet.to_string();
         let handle =
@@ -145,7 +156,7 @@ async fn get_project_current_apr(
     let calldata = [(
         yielder_address.to_owned(),
         "get_apr",
-        vec![FieldElement::from_hex_be(&minter_address).unwrap()],
+        vec![FieldElement::from_hex_be(minter_address).unwrap()],
     )];
 
     let data = match parallelize_blockchain_rpc_calls(provider, calldata.to_vec()).await {
@@ -183,22 +194,22 @@ pub async fn get_unconnected_project_data(
     global_data: CustomerGlobalDataForComputation,
     farming_data: CompleteFarmingData,
 ) -> Result<UnconnectedFarmingData, ModelError> {
-    let apr =
-        get_project_current_apr(&global_data.yielder_address, &global_data.minter_address).await?;
+    let yielder_address = match global_data.yielder_address {
+        Some(s) => s.to_owned(),
+        None => return Err(ModelError::NotReadyForFarming),
+    };
+    let offseter_address = match global_data.offseter_address {
+        Some(s) => s.to_owned(),
+        None => return Err(ModelError::NotReadyForFarming),
+    };
+
+    let apr = get_project_current_apr(&yielder_address, &global_data.minter_address).await?;
     let status = get_project_status(&farming_data);
 
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     let values = [
-        (
-            global_data.offseter_address.to_string(),
-            "get_total_deposited",
-            vec![],
-        ),
-        (
-            global_data.yielder_address.to_string(),
-            "get_total_deposited",
-            vec![],
-        ),
+        (offseter_address.to_string(), "get_total_deposited", vec![]),
+        (yielder_address.to_string(), "get_total_deposited", vec![]),
         (
             global_data.project_address.to_string(),
             "get_current_absorption",
@@ -241,14 +252,22 @@ pub async fn get_customer_listing_project_data(
         Ok(w) => w,
         Err(_) => return Err(ModelError::InvalidWalletAddress(wallet.to_owned())),
     };
+    let yielder_address = match &project_data.yielder_address {
+        Some(s) => s.to_owned(),
+        None => return Err(ModelError::NotReadyForFarming),
+    };
+    let offseter_address = match &project_data.offseter_address {
+        Some(s) => s.to_owned(),
+        None => return Err(ModelError::NotReadyForFarming),
+    };
     let values = [
         (
-            project_data.yielder_address.to_string(),
+            yielder_address.to_string(),
             "get_claimable_of",
             vec![felt_wallet],
         ),
         (
-            project_data.offseter_address.to_string(),
+            offseter_address.to_string(),
             "get_claimable_of",
             vec![felt_wallet],
         ),
@@ -282,13 +301,18 @@ pub async fn get_customer_details_project_data(
 ) -> Result<CustomerDetailsProjectData, ModelError> {
     let mut customer_details_project_data = CustomerDetailsProjectData::default();
 
-    let apr =
-        match get_project_current_apr(&project_data.yielder_address, &project_data.minter_address)
-            .await
-        {
-            Ok(a) => a,
-            Err(_) => ProjectApr::None,
-        };
+    let yielder_address = match &project_data.yielder_address {
+        Some(s) => s.to_owned(),
+        None => return Err(ModelError::NotReadyForFarming),
+    };
+    let offseter_address = match &project_data.offseter_address {
+        Some(s) => s.to_owned(),
+        None => return Err(ModelError::NotReadyForFarming),
+    };
+    let apr = match get_project_current_apr(&yielder_address, &project_data.minter_address).await {
+        Ok(a) => a,
+        Err(_) => ProjectApr::None,
+    };
     let mut builder = customer_details_project_data
         .with_contracts(&project_data, &farming_data)
         .with_apr(apr);
@@ -301,25 +325,17 @@ pub async fn get_customer_details_project_data(
             vec![u256_to_felt(&project_data.project_slot), FieldElement::ZERO],
         ),
         (
-            project_data.offseter_address.to_string(),
+            offseter_address.to_string(),
             "get_claimable_of",
             vec![FieldElement::from_hex_be(wallet).unwrap()],
         ),
         (
-            project_data.yielder_address.to_string(),
+            yielder_address.to_string(),
             "get_claimable_of",
             vec![FieldElement::from_hex_be(wallet).unwrap()],
         ),
-        (
-            project_data.offseter_address.to_string(),
-            "get_total_deposited",
-            vec![],
-        ),
-        (
-            project_data.yielder_address.to_string(),
-            "get_total_deposited",
-            vec![],
-        ),
+        (offseter_address.to_string(), "get_total_deposited", vec![]),
+        (yielder_address.to_string(), "get_total_deposited", vec![]),
         // (
         //     project_data.offseter_address.to_string(),
         //     "get_min_claimable",

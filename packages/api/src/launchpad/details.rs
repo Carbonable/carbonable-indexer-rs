@@ -35,7 +35,39 @@ async fn get_project_value(
         Err(_) => return Err(ApiError::FailedToAcquireSequencerConnection),
     };
     let slot_felt = u256_to_felt(slot);
+    if "0x07336c28e621dce9940603fb85136c57a3c46ce22e4ec862eeb0bdb0cd5cc9d9" == minter_address {
+        let calldata = [
+            (
+                project_address.to_owned(),
+                "get_project_value",
+                vec![slot_felt, FieldElement::ZERO],
+            ),
+            (minter_address.to_owned(), "get_remaining_value", vec![]),
+        ];
+
+        let data = parallelize_blockchain_rpc_calls(Arc::new(provider), calldata.to_vec()).await?;
+
+        let total_value = felt_to_u256(data[0].clone()[0]);
+        let remaining_value = felt_to_u256(data[1].clone()[0]);
+
+        return Ok(ProjectValue {
+            total_value: HumanComprehensibleU256::from(SlotValue::from_blockchain(
+                total_value,
+                6_u64.into(),
+            )),
+            remaining_value: HumanComprehensibleU256::from(SlotValue::from_blockchain(
+                remaining_value,
+                6_u64.into(),
+            )),
+            current_value: total_value - remaining_value,
+        });
+    }
     let calldata = [
+        (
+            project_address.to_owned(),
+            "total_value",
+            vec![slot_felt, FieldElement::ZERO],
+        ),
         (
             project_address.to_owned(),
             "get_project_value",
@@ -46,8 +78,8 @@ async fn get_project_value(
 
     let data = parallelize_blockchain_rpc_calls(Arc::new(provider), calldata.to_vec()).await?;
 
-    let total_value = felt_to_u256(data[0].clone()[0]);
-    let remaining_value = felt_to_u256(data[1].clone()[0]);
+    let current_value = felt_to_u256(data[0].clone()[0]);
+    let total_value = felt_to_u256(data[1].clone()[0]);
 
     Ok(ProjectValue {
         total_value: HumanComprehensibleU256::from(SlotValue::from_blockchain(
@@ -55,10 +87,10 @@ async fn get_project_value(
             6_u64.into(),
         )),
         remaining_value: HumanComprehensibleU256::from(SlotValue::from_blockchain(
-            remaining_value,
+            total_value - current_value,
             6_u64.into(),
         )),
-        current_value: total_value - remaining_value,
+        current_value,
     })
 }
 
@@ -104,7 +136,7 @@ pub async fn launchpad_details(
     if let Some(p) = &mut project {
         let project_value = get_project_value(
             &p.project.address,
-            p.launchpad.minter_contract.address.as_str(),
+            &p.launchpad.minter_contract.address,
             &p.project.slot,
         )
         .await?;
