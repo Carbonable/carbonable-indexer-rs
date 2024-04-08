@@ -56,8 +56,8 @@ pub struct CustomerGlobalDataForComputation {
     pub project_address: String,
     pub value_decimals: U256,
     pub ton_equivalent: U256,
-    pub yielder_address: String,
-    pub offseter_address: String,
+    pub yielder_address: Option<String>,
+    pub offseter_address: Option<String>,
     pub slot: U256,
     pub project_value: U256,
     pub minter_address: String,
@@ -356,8 +356,14 @@ impl CustomerDetailsProjectData {
         farming_data: &CompleteFarmingData,
     ) -> &mut Self {
         self.contracts = ContractsList {
-            yielder: String::from(&project_data.yielder_address),
-            offseter: String::from(&project_data.offseter_address),
+            yielder: match &project_data.yielder_address {
+                Some(s) => s.to_owned(),
+                None => String::new(),
+            },
+            offseter: match &project_data.offseter_address {
+                Some(s) => s.to_owned(),
+                None => String::new(),
+            },
             project: String::from(&farming_data.address),
             payment: String::from(&farming_data.payment_address.clone().unwrap_or_default()),
             yielder_abi: farming_data.yielder_abi.clone().into(),

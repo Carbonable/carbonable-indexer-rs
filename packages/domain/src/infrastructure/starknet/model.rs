@@ -53,6 +53,8 @@ pub enum ModelError {
     InvalidWalletAddress(String),
     #[error("failed to convert {0} to {1}")]
     TypeConversionError(String, String),
+    #[error("contract not ready to farm")]
+    NotReadyForFarming,
 }
 
 #[async_trait::async_trait]
