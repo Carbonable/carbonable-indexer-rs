@@ -6,6 +6,8 @@ use crate::{
     AppDependencies,
 };
 
+/// Get a list of all projects available throudh launchpad
+/// * `data`: AppDependencies
 pub async fn lauchpad_list(data: web::Data<AppDependencies>) -> Result<impl Responder, ApiError> {
     let project_model: PostgresProject<Erc721> = PostgresProject::new(data.db_client_pool.clone());
     let project_list = project_model.get_launchpad_list().await?;

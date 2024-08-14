@@ -25,6 +25,11 @@ struct ProjectValue {
     current_value: U256,
 }
 
+/// Get the project value for a given slot
+///
+/// * `project_address` - project
+/// * `minter_address` - minter
+/// * `slot` - slot
 async fn get_project_value(
     project_address: &str,
     minter_address: &str,
@@ -35,13 +40,18 @@ async fn get_project_value(
         Err(_) => return Err(ApiError::FailedToAcquireSequencerConnection),
     };
     let slot_felt = u256_to_felt(slot);
+    // NOTE: this is karathuru's minter. `get_remaining_value` has been updated to count the locked
+    // value too
     if "0x07336c28e621dce9940603fb85136c57a3c46ce22e4ec862eeb0bdb0cd5cc9d9" == minter_address {
         let calldata = [
             (
                 project_address.to_owned(),
+                // NOTE: get_project_value returns the total value of a project
                 "get_project_value",
                 vec![slot_felt, FieldElement::ZERO],
             ),
+            // NOTE: get_remaining_value returns the value of a project that is not yet claimed nor
+            // locked. (eg. we lock value for companies that want to pay with fiat currencies)
             (minter_address.to_owned(), "get_remaining_value", vec![]),
         ];
 
@@ -65,14 +75,17 @@ async fn get_project_value(
     let calldata = [
         (
             project_address.to_owned(),
+            // NOTE: total_value returns the current minted value of a project
             "total_value",
             vec![slot_felt, FieldElement::ZERO],
         ),
         (
             project_address.to_owned(),
+            // NOTE: get_project_value returns the total value of a project
             "get_project_value",
             vec![slot_felt, FieldElement::ZERO],
         ),
+        // NOTE: this is not used in that minter's version
         (minter_address.to_owned(), "get_remaining_value", vec![]),
     ];
 
@@ -94,6 +107,11 @@ async fn get_project_value(
     })
 }
 
+/// Project milestone is a UX feature that allows to set steps to enable boosts for leaderboard
+/// points.
+/// We can aggregate what we have onchain with what's setup in database.
+/// * `project_value` - project value
+/// * `metadata` - project metadata
 async fn aggregate_current_milestone(
     project_value: &ProjectValue,
     metadata: &serde_json::Value,
@@ -126,6 +144,9 @@ async fn aggregate_current_milestone(
     })
 }
 
+/// Get the details of a launchpad for a given wallet. This displays the view page of a project.
+/// * `slug_param`: project slug
+/// * `data`: AppDependencies
 pub async fn launchpad_details(
     slug_param: web::Path<String>,
     data: web::Data<AppDependencies>,

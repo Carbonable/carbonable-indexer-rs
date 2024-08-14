@@ -13,6 +13,8 @@ use crate::{
     AppDependencies,
 };
 
+/// Aggregate metadata from uri
+/// * `project` - project view model
 async fn aggregate_metadata(mut project: ProjectViewModel) -> Result<ProjectViewModel, ApiError> {
     let client = Client::new();
     let uri = match &project {
@@ -40,6 +42,9 @@ async fn aggregate_metadata(mut project: ProjectViewModel) -> Result<ProjectView
     Ok(project)
 }
 
+/// Get project by slug
+/// * `data` - app dependencies
+/// * `slug_param` - slug
 pub async fn get_by_slug(
     data: web::Data<AppDependencies>,
     slug_param: web::Path<String>,

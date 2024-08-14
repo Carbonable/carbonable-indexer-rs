@@ -32,6 +32,8 @@ use crate::{
 const HA_IN_M2: u64 = 10000;
 const TON_IN_G: u64 = 1000000;
 
+/// Aggregate image from slot_uri
+/// * `slot_uri` - slot uri as string. This can be a json string or a IPFS uri
 async fn aggregate_image_from_slot_uri(slot_uri: &str) -> serde_json::Value {
     let client = Client::new();
     if slot_uri.starts_with("data:application/json") {
@@ -64,6 +66,11 @@ async fn aggregate_image_from_slot_uri(slot_uri: &str) -> serde_json::Value {
         .clone()
 }
 
+/// Based on project and wallet address, fetch 721 tokens associated to wallet to compute invested
+/// amount.
+/// * `model` - postgres farming model
+/// * `project` - project with minter and payment view model
+/// * `wallet` - wallet address
 async fn aggregate_721_tokens(
     model: Arc<PostgresFarming>,
     project: ProjectWithMinterAndPaymentViewModel,
@@ -111,6 +118,13 @@ async fn aggregate_721_tokens(
 
     Ok(Some(project))
 }
+
+/// Based on project and wallet address, fetch 3525 tokens associated to wallet to compute invested
+/// amount.
+/// * `farming_model` - postgres farming model
+/// * `project` - project with minter and payment view model
+/// * `wallet` - wallet address
+/// * `customer_tokens` - customer tokens
 async fn aggregate_3525_tokens(
     farming_model: Arc<PostgresFarming>,
     project: ProjectWithMinterAndPaymentViewModel,
@@ -183,6 +197,13 @@ async fn aggregate_3525_tokens(
 
     Ok(Some(project))
 }
+
+/// Get asset area and carbon unit for a given project
+/// Calls 2 helper functions that fetches logic from smart contract
+/// * `model` - postgres farming model
+/// * `project_address` - project address
+/// * `slot` - slot
+/// * `value` - value
 async fn get_asset_area_and_carbon_unit(
     model: Arc<PostgresFarming>,
     project_address: &str,
@@ -209,6 +230,9 @@ async fn get_asset_area_and_carbon_unit(
         get_asset_carbon_unit(value, &project_carbon_unit, &total_value),
     );
 }
+/// Get project total value i.e the total value available in project
+/// * `project_address` - project address
+/// * `slot` - slot
 async fn get_project_total_value(project_address: &str, slot: &U256) -> Result<U256, ModelError> {
     let provider = get_starknet_rpc_from_env()?;
     let calldata = [(
@@ -221,6 +245,9 @@ async fn get_project_total_value(project_address: &str, slot: &U256) -> Result<U
     Ok(total_value)
 }
 
+/// Extract value from uri data
+/// * `uri_data` - uri data
+/// * `selector` - string selector with the `selector` attribute
 fn extract_from_uri(uri_data: &serde_json::Value, selector: &str) -> U256 {
     let attribute = uri_data.pointer(&format!("/attributes/{selector}/value"));
     match attribute {
@@ -229,15 +256,27 @@ fn extract_from_uri(uri_data: &serde_json::Value, selector: &str) -> U256 {
     }
 }
 
+/// Calculates asset area against project value
+/// * `value` - asset value
+/// * `project_area` - project area
+/// * `project_value` - project value
 fn get_asset_area(value: &U256, project_area: &U256, project_value: &U256) -> String {
     let asset_area = (*value * (*project_area * U256::from(HA_IN_M2))) / *project_value;
     format_area(asset_area)
 }
+
+/// Calculates asset carbon unit against project value
+/// * `value` - asset value
+/// * `project_carbon_unit` - project carbon unit
+/// * `project_value` - project value
 fn get_asset_carbon_unit(value: &U256, project_carbon_unit: &U256, project_value: &U256) -> String {
     let asset_carbon_unit =
         (*value * (*project_carbon_unit * U256::from(TON_IN_G))) / *project_value;
     format_capacity(asset_carbon_unit)
 }
+
+/// Format area with the correct unit
+/// * `value` - area value
 fn format_area(value: U256) -> String {
     if value == U256::zero() {
         return "N/A".to_owned();
@@ -249,6 +288,9 @@ fn format_area(value: U256) -> String {
 
     return format!("{}m²", value.to_big_decimal(0));
 }
+
+/// Format carbon unit with the correct unit
+/// * `value` - carbon unit value
 fn format_capacity(value: U256) -> String {
     if value == U256::zero() {
         return "N/A".to_owned();
@@ -268,6 +310,12 @@ fn total_amount(unit_price: U256, _payment_decimals: U256, amount: U256) -> U256
     unit_price * amount
 }
 
+/// For each project, fetch the tokens associated to the wallet based on the erc implementation of
+/// the token
+/// * `farming_model` - postgres farming model
+/// * `projects_data` - projects with minter and payment view model
+/// * `wallet` - wallet address
+/// * `customer_tokens` - customer tokens
 async fn aggregate_tokens_with_project(
     farming_model: Arc<PostgresFarming>,
     projects_data: Vec<ProjectWithMinterAndPaymentViewModel>,
@@ -304,6 +352,7 @@ async fn aggregate_tokens_with_project(
         }
     }
 }
+
 #[derive(Serialize)]
 pub struct Global {
     total: bigdecimal::BigDecimal,
@@ -315,6 +364,10 @@ pub struct GetByWalletResponse {
     projects: Vec<ProjectWithTokens>,
     badges: Vec<String>,
 }
+
+/// Get projects associated to a given wallet
+/// * `data` - app dependencies
+/// * `wallet_param` - wallet address
 pub async fn get_by_wallet(
     data: web::Data<AppDependencies>,
     wallet_param: web::Path<String>,

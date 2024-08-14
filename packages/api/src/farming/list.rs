@@ -17,17 +17,22 @@ use crate::{
     AppDependencies,
 };
 
+/// Aggregates metadata for projects.
+/// Supports both IPFS and HTTP URIs metadata for erc721 or 3525
+/// * `projects`: Vec<FarmingProjectsViewModel>
 async fn aggregate_metadata(
     mut projects: Vec<FarmingProjectsViewModel>,
 ) -> Result<Vec<FarmingProjectsViewModel>, ApiError> {
     let client = Client::new();
     for p in projects.iter_mut() {
+        // If uri is a json string encoded, we parse it
         if p.uri.uri.starts_with("data:application/json") {
             let metadata =
                 serde_json::from_str(p.uri.uri.replace("data:application/json,", "").as_str())?;
             p.uri.data = metadata;
             continue;
         }
+        // else this is an ipfs uri we fetch the metadata
         let data = client
             .get(format!("{}/token", p.uri.uri))
             .send()
@@ -40,6 +45,8 @@ async fn aggregate_metadata(
     Ok(projects)
 }
 
+/// Get a list of all projects on which farming is available.
+/// * `data`: AppDependencies
 pub async fn farming_list(data: web::Data<AppDependencies>) -> Result<impl Responder, ApiError> {
     let project_model = PostgresFarming::new(data.db_client_pool.clone());
     let mut projects = project_model.get_farming_projects().await?;
@@ -47,6 +54,10 @@ pub async fn farming_list(data: web::Data<AppDependencies>) -> Result<impl Respo
     Ok(HttpResponse::Ok().json(ServerResponse::Data { data: projects }))
 }
 
+/// Get global data (displayed on top of the farming list page)
+/// This represents the sum of all projects for a given wallet
+/// * `wallet_param`: wallet address
+/// * `data`: AppDependencies
 pub async fn global(
     wallet_param: web::Path<String>,
     data: web::Data<AppDependencies>,
@@ -64,6 +75,9 @@ pub async fn global(
     }))
 }
 
+/// Get unconnected data
+/// * `slug_param`: project slug
+/// * `data`: AppDependencies
 pub async fn unconnected(
     slug_param: web::Path<String>,
     data: web::Data<AppDependencies>,
@@ -103,6 +117,9 @@ pub async fn unconnected(
     }))
 }
 
+/// Get data for wallet and project
+/// * `route_params`: wallet address and project slug
+/// * `data`: AppDependencies
 pub async fn connected(
     route_params: web::Path<(String, String)>,
     data: web::Data<AppDependencies>,

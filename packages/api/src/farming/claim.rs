@@ -19,6 +19,9 @@ use std::sync::Arc;
 
 const MIN_CLAIMABLE: u64 = 10000;
 
+/// Get the claimable amount of a given yielder for a given wallet.
+/// * `wallet`: wallet address
+/// * `yielder`: yielder address
 async fn get_customer_claimable(wallet: &str, yielder: &str) -> Result<U256, ApiError> {
     let provider = Arc::new(get_starknet_rpc_from_env()?);
     let calldata = [(
@@ -36,6 +39,9 @@ async fn get_customer_claimable(wallet: &str, yielder: &str) -> Result<U256, Api
     Ok(claimable)
 }
 
+/// Claim all yielders for a given wallet having at least `MIN_CLAIMABLE` amount of claimable yield.
+/// * `wallet_param`: wallet address
+/// * `data`: AppDependencies
 pub async fn claim_all(
     wallet_param: web::Path<String>,
     data: web::Data<AppDependencies>,

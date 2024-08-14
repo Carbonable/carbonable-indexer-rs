@@ -3,6 +3,7 @@ use carbonable_domain::infrastructure::postgres::event_store::get_last_stored_ev
 
 use crate::{common::ApiError, AppDependencies};
 
+/// Returns last indexed block
 pub async fn get_latest_block(
     data: web::Data<AppDependencies>,
 ) -> Result<impl Responder, ApiError> {

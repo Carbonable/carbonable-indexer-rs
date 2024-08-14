@@ -10,6 +10,9 @@ use crate::{
     AppDependencies,
 };
 
+/// Get the details of a project for a given wallet.
+/// * `route_params`: wallet address and project slug
+/// * `data`: AppDependencies
 pub async fn project_details(
     route_params: web::Path<(String, String)>,
     data: web::Data<AppDependencies>,
